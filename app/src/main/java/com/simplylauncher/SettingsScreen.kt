@@ -30,13 +30,12 @@ fun SettingsScreen() {
     val cols by Prefs.colsFlow(context).collectAsState(initial = 4)
     val rows by Prefs.rowsFlow(context).collectAsState(initial = 6)
 
-    // Palette: bianco, nero, blu medio, verde medio, rosso
     val palette = listOf(
-        0xFFFFFFFF.toInt(), // bianco
-        0xFF000000.toInt(), // nero
-        0xFF1E88E5.toInt(), // blu medio
-        0xFF43A047.toInt(), // verde medio
-        0xFFE53935.toInt(), // rosso
+        0xFFFFFFFF.toInt(),
+        0xFF000000.toInt(),
+        0xFF1E88E5.toInt(),
+        0xFF43A047.toInt(),
+        0xFFE53935.toInt(),
     )
 
     val backgroundColor = if (darkTheme) Color(0xFF121212) else Color(0xFFF5F5F5)
@@ -48,6 +47,7 @@ fun SettingsScreen() {
             .fillMaxSize()
             .background(backgroundColor)
             .verticalScroll(rememberScrollState())
+            .windowInsetsPadding(WindowInsets.statusBars)
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(28.dp)
     ) {
@@ -61,7 +61,6 @@ fun SettingsScreen() {
 
         HorizontalDivider(thickness = 1.dp, color = dividerColor)
 
-        // COLORE SFONDO
         SettingsSection(title = "Colore sfondo", textColor = textColor) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -90,7 +89,6 @@ fun SettingsScreen() {
 
         HorizontalDivider(thickness = 1.dp, color = dividerColor)
 
-        // TRASPARENZA
         SettingsSection(title = "Trasparenza: ${(alpha * 100).toInt()}%", textColor = textColor) {
             Slider(
                 value = alpha,
@@ -101,7 +99,6 @@ fun SettingsScreen() {
 
         HorizontalDivider(thickness = 1.dp, color = dividerColor)
 
-        // COLONNE
         SettingsSection(title = "Colonne: $cols", textColor = textColor) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 listOf(3, 4).forEach { n ->
@@ -116,7 +113,6 @@ fun SettingsScreen() {
 
         HorizontalDivider(thickness = 1.dp, color = dividerColor)
 
-        // RIGHE
         SettingsSection(title = "Righe: $rows", textColor = textColor) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 listOf(5, 6, 7).forEach { n ->
