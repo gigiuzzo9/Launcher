@@ -26,7 +26,7 @@ class HomeActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        maybeAskLauncherRole()
+        askLauncherIfNeeded()
 
         registerReceiver(
             reloadReceiver,
@@ -58,24 +58,46 @@ class HomeActivity : ComponentActivity() {
         }
     }
 
-    private fun maybeAskLauncherRole() {
-        // Controlla se siamo già il launcher predefinito
+    private fun askLauncherIfNeeded() {
+        // Legge se l'utente ha già scelto (in Prefs, valore booleano)
+        val prefs = getSharedPreferences("launcher_flags", MODE_PRIVATE)
+        val alreadyAsked = prefs.getBoolean("asked_launcher", false)
+
+        // Controlla se siamo GIÀ il launcher predefinito
         val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
         val res = packageManager.resolveActivity(homeIntent, 0)
         val currentHome = res?.activityInfo?.packageName
 
-        if (currentHome == packageName) {
-            // Siamo già il launcher, non fare nulla
+        val isDefault = currentHome == packageName
+
+        if (isDefault) {
+            // Siamo il launcher, salva il flag
+            prefs.edit().putBoolean("asked_launcher", true).apply()
             return
         }
 
-        // Non siamo il launcher, apri la pagina di scelta
+        if (alreadyAsked) {
+            // Già chiesto in passato, non riproporre
+            return
+        }
+
+        // Non siamo il launcher e non l'abbiamo mai chiesto → apri la pagina
+        prefs.edit().putBoolean("asked_launcher", true).apply()
+
         try {
             val intent = Intent(Settings.ACTION_HOME_SETTINGS)
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(intent)
         } catch (e: Exception) {
-            // Niente, lasciamo stare
+            // Fallback: prova con un intent generico
+            try {
+                val intent = Intent(Intent.ACTION_MAIN)
+                intent.addCategory(Intent.CATEGORY_HOME)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+            } catch (e2: Exception) {
+                // Niente, lasciamo stare
+            }
         }
     }
 }
