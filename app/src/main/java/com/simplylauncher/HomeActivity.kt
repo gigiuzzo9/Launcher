@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
-import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -26,8 +25,6 @@ class HomeActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        askLauncherIfNeeded()
-
         registerReceiver(
             reloadReceiver,
             IntentFilter("com.simplylauncher.RELOAD"),
@@ -46,6 +43,20 @@ class HomeActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Se arriva un intent HOME (tasto Home premuto), chiudi il cassetto
+        if (intent.hasCategory(Intent.CATEGORY_HOME)) {
+            drawerOpen.value = false
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Quando l'activity torna in primo piano (es. da app recenti), chiudi il cassetto
+        drawerOpen.value = false
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         try { unregisterReceiver(reloadReceiver) } catch (_: Exception) {}
@@ -55,49 +66,6 @@ class HomeActivity : ComponentActivity() {
     override fun onBackPressed() {
         if (drawerOpen.value) {
             drawerOpen.value = false
-        }
-    }
-
-    private fun askLauncherIfNeeded() {
-        // Legge se l'utente ha già scelto (in Prefs, valore booleano)
-        val prefs = getSharedPreferences("launcher_flags", MODE_PRIVATE)
-        val alreadyAsked = prefs.getBoolean("asked_launcher", false)
-
-        // Controlla se siamo GIÀ il launcher predefinito
-        val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-        val res = packageManager.resolveActivity(homeIntent, 0)
-        val currentHome = res?.activityInfo?.packageName
-
-        val isDefault = currentHome == packageName
-
-        if (isDefault) {
-            // Siamo il launcher, salva il flag
-            prefs.edit().putBoolean("asked_launcher", true).apply()
-            return
-        }
-
-        if (alreadyAsked) {
-            // Già chiesto in passato, non riproporre
-            return
-        }
-
-        // Non siamo il launcher e non l'abbiamo mai chiesto → apri la pagina
-        prefs.edit().putBoolean("asked_launcher", true).apply()
-
-        try {
-            val intent = Intent(Settings.ACTION_HOME_SETTINGS)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
-        } catch (e: Exception) {
-            // Fallback: prova con un intent generico
-            try {
-                val intent = Intent(Intent.ACTION_MAIN)
-                intent.addCategory(Intent.CATEGORY_HOME)
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(intent)
-            } catch (e2: Exception) {
-                // Niente, lasciamo stare
-            }
         }
     }
 }
