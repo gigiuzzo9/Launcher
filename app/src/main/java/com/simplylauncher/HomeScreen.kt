@@ -111,7 +111,7 @@ fun HomeScreen(
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 55.dp),
+                .padding(bottom = 53.dp),
             contentAlignment = Alignment.Center
         ) {
             Image(
