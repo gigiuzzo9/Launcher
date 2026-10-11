@@ -2,6 +2,7 @@ package com.simplylauncher
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -22,43 +23,46 @@ import kotlinx.coroutines.launch
 fun SettingsScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val darkTheme = isSystemInDarkTheme()
 
     val color by Prefs.colorFlow(context).collectAsState(initial = 0xFF000000.toInt())
     val alpha by Prefs.alphaFlow(context).collectAsState(initial = 0.9f)
     val cols by Prefs.colsFlow(context).collectAsState(initial = 4)
     val rows by Prefs.rowsFlow(context).collectAsState(initial = 6)
 
+    // Palette: bianco, nero, blu medio, verde medio, rosso
     val palette = listOf(
-        0xFF000000.toInt(), // nero
-        0xFF1E1E1E.toInt(), // grigio scuro
-        0xFF2E3A59.toInt(), // blu scuro
-        0xFF3A2E59.toInt(), // viola scuro
-        0xFF593A2E.toInt(), // marrone
-        0xFF2E593A.toInt(), // verde scuro
         0xFFFFFFFF.toInt(), // bianco
+        0xFF000000.toInt(), // nero
+        0xFF1E88E5.toInt(), // blu medio
+        0xFF43A047.toInt(), // verde medio
+        0xFFE53935.toInt(), // rosso
     )
+
+    val backgroundColor = if (darkTheme) Color(0xFF121212) else Color(0xFFF5F5F5)
+    val textColor = if (darkTheme) Color.White else Color.Black
+    val dividerColor = textColor.copy(alpha = 0.15f)
 
     Column(
         Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(backgroundColor)
             .verticalScroll(rememberScrollState())
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(28.dp)
     ) {
 
-        // Titolo pagina
         Text(
             "Impostazioni",
             fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
+            color = textColor
         )
 
-        Divider()
+        HorizontalDivider(thickness = 1.dp, color = dividerColor)
 
         // COLORE SFONDO
-        SettingsSection(title = "Colore sfondo") {
+        SettingsSection(title = "Colore sfondo", textColor = textColor) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -84,10 +88,10 @@ fun SettingsScreen() {
             }
         }
 
-        Divider()
+        HorizontalDivider(thickness = 1.dp, color = dividerColor)
 
         // TRASPARENZA
-        SettingsSection(title = "Trasparenza: ${(alpha * 100).toInt()}%") {
+        SettingsSection(title = "Trasparenza: ${(alpha * 100).toInt()}%", textColor = textColor) {
             Slider(
                 value = alpha,
                 onValueChange = { scope.launch { Prefs.setAlpha(context, it) } },
@@ -95,10 +99,10 @@ fun SettingsScreen() {
             )
         }
 
-        Divider()
+        HorizontalDivider(thickness = 1.dp, color = dividerColor)
 
         // COLONNE
-        SettingsSection(title = "Colonne: $cols") {
+        SettingsSection(title = "Colonne: $cols", textColor = textColor) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 listOf(3, 4).forEach { n ->
                     FilterChip(
@@ -110,10 +114,10 @@ fun SettingsScreen() {
             }
         }
 
-        Divider()
+        HorizontalDivider(thickness = 1.dp, color = dividerColor)
 
         // RIGHE
-        SettingsSection(title = "Righe: $rows") {
+        SettingsSection(title = "Righe: $rows", textColor = textColor) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 listOf(5, 6, 7).forEach { n ->
                     FilterChip(
@@ -132,6 +136,7 @@ fun SettingsScreen() {
 @Composable
 private fun SettingsSection(
     title: String,
+    textColor: Color,
     content: @Composable () -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -139,16 +144,8 @@ private fun SettingsSection(
             title,
             fontSize = 16.sp,
             fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onBackground
+            color = textColor
         )
         content()
     }
-}
-
-@Composable
-private fun Divider() {
-    HorizontalDivider(
-        thickness = 1.dp,
-        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.15f)
-    )
 }
