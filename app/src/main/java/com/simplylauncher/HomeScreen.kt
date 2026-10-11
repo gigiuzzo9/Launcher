@@ -10,20 +10,17 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.graphics.drawable.toBitmap
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 
 @Composable
 fun LauncherRoot(
@@ -74,12 +71,12 @@ fun HomeScreen(
 
     Box(Modifier.fillMaxSize()) {
 
-        // GRIGLIA APP DELLA HOME (parte alta, lascia spazio in basso per il dock)
+        // GRIGLIA APP DELLA HOME
         if (homeApps.isEmpty()) {
             Column(
                 Modifier
                     .fillMaxSize()
-                    .padding(top = 60.dp, bottom = 120.dp)
+                    .padding(top = 60.dp, bottom = 160.dp)
                     .padding(24.dp),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -95,7 +92,7 @@ fun HomeScreen(
                 columns = GridCells.Fixed(cols),
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = 60.dp, bottom = 120.dp)
+                    .padding(top = 60.dp, bottom = 160.dp)
             ) {
                 items(homeApps, key = { it.packageName }) { app ->
                     AppIcon(
@@ -112,35 +109,22 @@ fun HomeScreen(
             }
         }
 
-        // DOCK IN BASSO — 5 slot: 2 app + cassetto + 2 app
-        Dock(
-            onOpenDrawer = onOpenDrawer,
+        // DOCK — 5 slot: 4 vuoti + pulsante cassetto centrale
+        Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 24.dp)
-        )
-    }
-}
-
-@Composable
-private fun Dock(
-    onOpenDrawer: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    // 5 slot. Lo slot centrale (indice 2) è il pulsante cassetto.
-    // Gli altri 4 sono vuoti per ora (li riempiremo col menu "Aggiungi al dock").
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        DockSlotEmpty()
-        DockSlotEmpty()
-        DockDrawerButton(onOpenDrawer)
-        DockSlotEmpty()
-        DockSlotEmpty()
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 80.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            DockSlotEmpty()
+            DockSlotEmpty()
+            DockDrawerButton(onOpenDrawer)
+            DockSlotEmpty()
+            DockSlotEmpty()
+        }
     }
 }
 
@@ -149,7 +133,7 @@ private fun DockSlotEmpty() {
     Box(
         modifier = Modifier
             .size(56.dp)
-            .background(Color.White.copy(alpha = 0.08f), shape = androidx.compose.foundation.shape.CircleShape)
+            .background(Color.White.copy(alpha = 0.08f), CircleShape)
     )
 }
 
