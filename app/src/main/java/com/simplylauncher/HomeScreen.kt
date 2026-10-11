@@ -107,11 +107,11 @@ fun HomeScreen(
             }
         }
 
-        // DOCK — pulsante cassetto, senza effetto click
+        // DOCK — pulsante cassetto a 55.dp, senza effetto click
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 65.dp),
+                .padding(bottom = 55.dp),
             contentAlignment = Alignment.Center
         ) {
             Image(
