@@ -25,6 +25,15 @@ object AppRepository {
     }
 
     fun launchApp(context: Context, packageName: String) {
+        // Caso speciale: se è la nostra app, apri le Impostazioni
+        if (packageName == context.packageName) {
+            val intent = Intent(context, SettingsActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            return
+        }
+
+        // App normali: usa il launcher intent
         val intent = context.packageManager.getLaunchIntentForPackage(packageName)
         intent?.let {
             it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
