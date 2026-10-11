@@ -2,7 +2,6 @@ package com.simplylauncher
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -23,7 +22,6 @@ import kotlinx.coroutines.launch
 fun SettingsScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val darkTheme = isSystemInDarkTheme()
 
     val color by Prefs.colorFlow(context).collectAsState(initial = 0xFF000000.toInt())
     val alpha by Prefs.alphaFlow(context).collectAsState(initial = 0.9f)
@@ -38,9 +36,9 @@ fun SettingsScreen() {
         0xFFE53935.toInt(),
     )
 
-    val backgroundColor = if (darkTheme) Color(0xFF121212) else Color(0xFFF5F5F5)
-    val textColor = if (darkTheme) Color.White else Color.Black
-    val dividerColor = textColor.copy(alpha = 0.15f)
+    val backgroundColor = Color.White
+    val textColor = Color.Black
+    val dividerColor = Color.Black.copy(alpha = 0.15f)
 
     Column(
         Modifier
