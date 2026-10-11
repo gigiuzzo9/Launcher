@@ -21,7 +21,7 @@
         android:theme="@style/Theme.Launcher"
         tools:targetApi="34">
 
-        <!-- Entry point: quando l'utente tocca l'icona dell'app -->
+        <!-- Entry point: icona app -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -32,13 +32,14 @@
             </intent-filter>
         </activity>
 
-        <!-- Launcher: solo per CATEGORY_HOME -->
+        <!-- Launcher (home) — esclusa dalle app recenti -->
         <activity
             android:name=".HomeActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:stateNotNeeded="true"
             android:excludeFromRecents="true"
+            android:taskAffinity=""
             android:screenOrientation="portrait"
             android:theme="@style/Theme.Launcher.Home">
             <intent-filter>
