@@ -26,7 +26,8 @@ fun AppIcon(
     onLongPress: () -> Unit,
     onDragStart: () -> Unit,
     onDrag: (Float, Float) -> Unit,
-    onDragEnd: () -> Unit
+    onDragEnd: () -> Unit,
+    textColor: Color = Color.White
 ) {
     val iconSize = cellWidth * 0.6f
     val bmp = remember(app) { app.icon.toBitmap(128, 128).asImageBitmap() }
@@ -62,7 +63,7 @@ fun AppIcon(
         Spacer(Modifier.height(4.dp))
         Text(
             text = app.label,
-            color = Color.White,
+            color = textColor,
             fontSize = (cellWidth.value * 0.11f).sp,
             maxLines = 1,
             textAlign = TextAlign.Center
