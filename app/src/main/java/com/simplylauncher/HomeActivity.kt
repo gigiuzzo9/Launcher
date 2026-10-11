@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -61,18 +62,33 @@ class HomeActivity : ComponentActivity() {
     override fun onBackPressed() {
         if (drawerOpen.value) {
             drawerOpen.value = false
-        } else {
-            // Non fare nulla: sulla home, il tasto indietro non fa niente
         }
     }
 
     private fun maybeAskLauncherRole() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val rm = getSystemService(Context.ROLE_SERVICE) as RoleManager
-            if (!rm.isRoleHeld(RoleManager.ROLE_HOME) && rm.isRoleAvailable(RoleManager.ROLE_HOME)) {
-                val intent = rm.createRequestRoleIntent(RoleManager.ROLE_HOME)
-                roleLauncher.launch(intent)
+            if (rm.isRoleHeld(RoleManager.ROLE_HOME)) {
+                // Già impostato come launcher, non fare nulla
+                return
             }
+            if (rm.isRoleAvailable(RoleManager.ROLE_HOME)) {
+                try {
+                    val intent = rm.createRequestRoleIntent(RoleManager.ROLE_HOME)
+                    roleLauncher.launch(intent)
+                    return
+                } catch (e: Exception) {
+                    // Fallisce, usa il fallback
+                }
+            }
+        }
+        // Fallback: apri direttamente la pagina delle impostazioni launcher
+        try {
+            val intent = Intent(Settings.ACTION_HOME_SETTINGS)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+        } catch (e: Exception) {
+            // Niente, lasciamo stare
         }
     }
 }
