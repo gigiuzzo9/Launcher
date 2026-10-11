@@ -57,6 +57,15 @@ class HomeActivity : ComponentActivity() {
         try { unregisterReceiver(reloadReceiver) } catch (_: Exception) {}
     }
 
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (drawerOpen.value) {
+            drawerOpen.value = false
+        } else {
+            // Non fare nulla: sulla home, il tasto indietro non fa niente
+        }
+    }
+
     private fun maybeAskLauncherRole() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val rm = getSystemService(Context.ROLE_SERVICE) as RoleManager
