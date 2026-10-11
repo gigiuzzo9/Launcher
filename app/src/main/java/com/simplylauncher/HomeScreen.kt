@@ -4,7 +4,6 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -106,18 +105,23 @@ fun HomeScreen(
             }
         }
 
-        // DOCK — pulsante cassetto, senza cerchio di sfondo
+        // DOCK — pulsante cassetto, senza effetto click
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 40.dp)
-                .clickable { onOpenDrawer() },
+                .padding(bottom = 65.dp),
             contentAlignment = Alignment.Center
         ) {
             Image(
                 painter = painterResource(id = R.drawable.ic_drawer),
                 contentDescription = "Cassetto",
-                modifier = Modifier.size(70.dp)
+                modifier = Modifier
+                    .size(70.dp)
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = { onOpenDrawer() }
+                        )
+                    }
             )
         }
     }
