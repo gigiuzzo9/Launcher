@@ -1,27 +1,20 @@
 package com.simplylauncher
 
-import android.app.role.RoleManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.mutableStateOf
 
 class HomeActivity : ComponentActivity() {
 
     private val drawerOpen = mutableStateOf(false)
     private val reloadTick = mutableStateOf(0)
-
-    private val roleLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { }
 
     private val reloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -66,23 +59,17 @@ class HomeActivity : ComponentActivity() {
     }
 
     private fun maybeAskLauncherRole() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val rm = getSystemService(Context.ROLE_SERVICE) as RoleManager
-            if (rm.isRoleHeld(RoleManager.ROLE_HOME)) {
-                // Già impostato come launcher, non fare nulla
-                return
-            }
-            if (rm.isRoleAvailable(RoleManager.ROLE_HOME)) {
-                try {
-                    val intent = rm.createRequestRoleIntent(RoleManager.ROLE_HOME)
-                    roleLauncher.launch(intent)
-                    return
-                } catch (e: Exception) {
-                    // Fallisce, usa il fallback
-                }
-            }
+        // Controlla se siamo già il launcher predefinito
+        val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val res = packageManager.resolveActivity(homeIntent, 0)
+        val currentHome = res?.activityInfo?.packageName
+
+        if (currentHome == packageName) {
+            // Siamo già il launcher, non fare nulla
+            return
         }
-        // Fallback: apri direttamente la pagina delle impostazioni launcher
+
+        // Non siamo il launcher, apri la pagina di scelta
         try {
             val intent = Intent(Settings.ACTION_HOME_SETTINGS)
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
