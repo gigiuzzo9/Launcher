@@ -5,24 +5,25 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.graphics.drawable.toBitmap
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 
 @Composable
 fun LauncherRoot(
@@ -69,22 +70,32 @@ fun HomeScreen(
     val screenHeight = config.screenHeightDp.dp
     val screenWidth = config.screenWidthDp.dp
     val cellWidth = screenWidth / cols
-    val cellHeight = (screenHeight / rows) * 0.9f
+    val cellHeight = (screenHeight / rows) * 0.8f
 
     Box(Modifier.fillMaxSize()) {
 
+        // GRIGLIA APP DELLA HOME (parte alta, lascia spazio in basso per il dock)
         if (homeApps.isEmpty()) {
             Column(
-                Modifier.fillMaxSize().padding(24.dp),
+                Modifier
+                    .fillMaxSize()
+                    .padding(top = 60.dp, bottom = 120.dp)
+                    .padding(24.dp),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Apri il cassetto e aggiungi le tue app", color = Color.White)
+                Text(
+                    "Apri il cassetto e aggiungi le tue app",
+                    color = Color.White,
+                    fontSize = 14.sp
+                )
             }
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(cols),
-                modifier = Modifier.fillMaxSize().padding(top = 40.dp)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 60.dp, bottom = 120.dp)
             ) {
                 items(homeApps, key = { it.packageName }) { app ->
                     AppIcon(
@@ -101,32 +112,59 @@ fun HomeScreen(
             }
         }
 
-        IconButton(
-            onClick = onOpenSettings,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 40.dp, end = 16.dp)
-        ) {
-            Icon(
-                Icons.Default.Settings,
-                contentDescription = "Impostazioni",
-                tint = Color.White
-            )
-        }
-
-        IconButton(
-            onClick = onOpenDrawer,
+        // DOCK IN BASSO — 5 slot: 2 app + cassetto + 2 app
+        Dock(
+            onOpenDrawer = onOpenDrawer,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 32.dp)
-                .size(56.dp)
-                .background(Color.White.copy(alpha = 0.15f), CircleShape)
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.ic_drawer),
-                contentDescription = "Cassetto",
-                modifier = Modifier.size(32.dp)
-            )
-        }
+                .padding(bottom = 24.dp)
+        )
+    }
+}
+
+@Composable
+private fun Dock(
+    onOpenDrawer: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    // 5 slot. Lo slot centrale (indice 2) è il pulsante cassetto.
+    // Gli altri 4 sono vuoti per ora (li riempiremo col menu "Aggiungi al dock").
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        DockSlotEmpty()
+        DockSlotEmpty()
+        DockDrawerButton(onOpenDrawer)
+        DockSlotEmpty()
+        DockSlotEmpty()
+    }
+}
+
+@Composable
+private fun DockSlotEmpty() {
+    Box(
+        modifier = Modifier
+            .size(56.dp)
+            .background(Color.White.copy(alpha = 0.08f), shape = androidx.compose.foundation.shape.CircleShape)
+    )
+}
+
+@Composable
+private fun DockDrawerButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(56.dp)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.ic_drawer),
+            contentDescription = "Cassetto",
+            modifier = Modifier.size(32.dp)
+        )
     }
 }
