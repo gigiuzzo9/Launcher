@@ -76,7 +76,7 @@ fun HomeScreen(
             Column(
                 Modifier
                     .fillMaxSize()
-                    .padding(top = 60.dp, bottom = 160.dp)
+                    .padding(top = 60.dp, bottom = 130.dp)
                     .padding(24.dp),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -92,7 +92,7 @@ fun HomeScreen(
                 columns = GridCells.Fixed(cols),
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = 60.dp, bottom = 160.dp)
+                    .padding(top = 60.dp, bottom = 130.dp)
             ) {
                 items(homeApps, key = { it.packageName }) { app ->
                     AppIcon(
@@ -115,7 +115,7 @@ fun HomeScreen(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
-                .padding(bottom = 80.dp),
+                .padding(bottom = 50.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -132,7 +132,7 @@ fun HomeScreen(
 private fun DockSlotEmpty() {
     Box(
         modifier = Modifier
-            .size(56.dp)
+            .size(64.dp)
             .background(Color.White.copy(alpha = 0.08f), CircleShape)
     )
 }
@@ -141,14 +141,14 @@ private fun DockSlotEmpty() {
 private fun DockDrawerButton(onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .size(56.dp)
+            .size(64.dp)
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Image(
             painter = painterResource(id = R.drawable.ic_drawer),
             contentDescription = "Cassetto",
-            modifier = Modifier.size(32.dp)
+            modifier = Modifier.size(48.dp)
         )
     }
 }
