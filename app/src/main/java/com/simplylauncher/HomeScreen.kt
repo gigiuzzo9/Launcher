@@ -4,11 +4,13 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -69,7 +71,6 @@ fun HomeScreen(
 
     Box(Modifier.fillMaxSize()) {
 
-        // GRIGLIA APP DELLA HOME
         if (homeApps.isEmpty()) {
             Column(
                 Modifier
@@ -107,23 +108,24 @@ fun HomeScreen(
             }
         }
 
-        // DOCK — solo il pulsante cassetto al centro, per ora
+        // DOCK — pulsante cassetto, GRANDE
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 50.dp),
+                .padding(bottom = 40.dp),
             contentAlignment = Alignment.Center
         ) {
             Box(
                 modifier = Modifier
-                    .size(80.dp)
+                    .size(90.dp)
+                    .background(Color.White.copy(alpha = 0.15f), CircleShape)
                     .clickable { onOpenDrawer() },
                 contentAlignment = Alignment.Center
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.ic_drawer),
                     contentDescription = "Cassetto",
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier.size(70.dp)
                 )
             }
         }
