@@ -50,7 +50,9 @@ fun DrawerScreen(
         ) {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(cols),
-                modifier = Modifier.fillMaxSize().padding(12.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
