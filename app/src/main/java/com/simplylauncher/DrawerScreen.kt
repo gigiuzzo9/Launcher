@@ -43,7 +43,7 @@ fun DrawerScreen(
         Box(
             Modifier
                 .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.90f)
+                .fillMaxHeight(0.82f)
                 .align(Alignment.Center)
                 .clip(RoundedCornerShape(20.dp))
                 .background(Color(color).copy(alpha = alpha))
