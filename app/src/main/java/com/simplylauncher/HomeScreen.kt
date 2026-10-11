@@ -4,13 +4,11 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -109,46 +107,25 @@ fun HomeScreen(
             }
         }
 
-        // DOCK — 5 slot: 4 vuoti + pulsante cassetto centrale
-        Row(
+        // DOCK — solo il pulsante cassetto al centro, per ora
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
                 .padding(bottom = 50.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
+            contentAlignment = Alignment.Center
         ) {
-            DockSlotEmpty()
-            DockSlotEmpty()
-            DockDrawerButton(onOpenDrawer)
-            DockSlotEmpty()
-            DockSlotEmpty()
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .clickable { onOpenDrawer() },
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_drawer),
+                    contentDescription = "Cassetto",
+                    modifier = Modifier.size(48.dp)
+                )
+            }
         }
-    }
-}
-
-@Composable
-private fun DockSlotEmpty() {
-    Box(
-        modifier = Modifier
-            .size(64.dp)
-            .background(Color.White.copy(alpha = 0.08f), CircleShape)
-    )
-}
-
-@Composable
-private fun DockDrawerButton(onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(64.dp)
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
-    ) {
-        Image(
-            painter = painterResource(id = R.drawable.ic_drawer),
-            contentDescription = "Cassetto",
-            modifier = Modifier.size(48.dp)
-        )
     }
 }
