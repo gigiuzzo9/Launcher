@@ -116,7 +116,7 @@ fun HomeScreen(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp)
-                .padding(bottom = 53.dp),
+                .padding(bottom = 50.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             DockSlot(dockApps.getOrNull(0), Modifier.weight(1f))
