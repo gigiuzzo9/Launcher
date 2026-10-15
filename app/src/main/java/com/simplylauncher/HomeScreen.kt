@@ -110,58 +110,60 @@ fun HomeScreen(
             }
         }
 
-        // DOCK: 5 slot — 2 app, cassetto (grande), 2 app
+        // DOCK: 5 slot con weight(1f) — ognuno occupa esattamente 1/5
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 8.dp)
                 .padding(bottom = 53.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            DockSlot(dockApps.getOrNull(0))
-            DockSlot(dockApps.getOrNull(1))
-            DockDrawerButton(onOpenDrawer)
-            DockSlot(dockApps.getOrNull(2))
-            DockSlot(dockApps.getOrNull(3))
+            DockSlot(dockApps.getOrNull(0), Modifier.weight(1f))
+            DockSlot(dockApps.getOrNull(1), Modifier.weight(1f))
+            DockDrawerButton(onOpenDrawer, Modifier.weight(1f))
+            DockSlot(dockApps.getOrNull(2), Modifier.weight(1f))
+            DockSlot(dockApps.getOrNull(3), Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-private fun DockSlot(app: AppInfo?) {
+private fun DockSlot(app: AppInfo?, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    if (app == null) {
-        Spacer(Modifier.size(70.dp))
-    } else {
-        Box(
-            modifier = Modifier
-                .size(70.dp)
-                .pointerInput(app.packageName) {
-                    detectTapGestures(
-                        onTap = { AppRepository.launchApp(context, app.packageName) }
-                    )
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            val bmp = remember(app.packageName) {
-                AppIconCache.get(app.packageName, app)
+    Box(
+        modifier = modifier.height(80.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        if (app != null) {
+            Box(
+                modifier = Modifier
+                    .size(70.dp)
+                    .pointerInput(app.packageName) {
+                        detectTapGestures(
+                            onTap = { AppRepository.launchApp(context, app.packageName) }
+                        )
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                val bmp = remember(app.packageName) {
+                    AppIconCache.get(app.packageName, app)
+                }
+                Image(
+                    bitmap = bmp,
+                    contentDescription = app.label,
+                    modifier = Modifier.size(60.dp)
+                )
             }
-            Image(
-                bitmap = bmp,
-                contentDescription = app.label,
-                modifier = Modifier.size(60.dp)
-            )
         }
     }
 }
 
 @Composable
-private fun DockDrawerButton(onClick: () -> Unit) {
+private fun DockDrawerButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier
-            .size(80.dp)
+        modifier = modifier
+            .height(80.dp)
             .pointerInput(Unit) {
                 detectTapGestures(onTap = { onClick() })
             },
