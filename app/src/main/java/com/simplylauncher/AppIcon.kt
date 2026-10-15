@@ -1,6 +1,5 @@
 package com.simplylauncher
 
-import android.graphics.drawable.Drawable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -9,15 +8,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.graphics.drawable.toBitmap
 
 @Composable
 fun AppIcon(
@@ -26,16 +21,12 @@ fun AppIcon(
     cellHeight: Dp,
     onClick: () -> Unit,
     onLongPress: () -> Unit,
-    onDragStart: () -> Unit,
-    onDrag: (Float, Float) -> Unit,
-    onDragEnd: () -> Unit,
     textColor: Color = Color.White
 ) {
     val iconSize = cellWidth * 0.6f
 
-    // Bitmap cachato: calcolato UNA SOLA VOLTA per app
     val bmp = remember(app.packageName) {
-        app.icon.toBitmap(96, 96).asImageBitmap()
+        AppIconCache.get(app.packageName, app)
     }
 
     Column(
