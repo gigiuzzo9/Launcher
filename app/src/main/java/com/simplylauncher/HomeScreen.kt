@@ -138,7 +138,7 @@ private fun DockSlot(app: AppInfo?, modifier: Modifier = Modifier) {
         if (app != null) {
             Box(
                 modifier = Modifier
-                    .size(80.dp)
+                    .size(70.dp)
                     .pointerInput(app.packageName) {
                         detectTapGestures(
                             onTap = { AppRepository.launchApp(context, app.packageName) }
