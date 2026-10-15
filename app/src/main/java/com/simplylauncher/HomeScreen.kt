@@ -18,7 +18,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -111,7 +110,7 @@ fun HomeScreen(
             }
         }
 
-        // DOCK: 5 slot — 2 app, cassetto, 2 app
+        // DOCK: 5 slot — 2 app, cassetto (grande), 2 app
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -134,11 +133,11 @@ fun HomeScreen(
 private fun DockSlot(app: AppInfo?) {
     val context = LocalContext.current
     if (app == null) {
-        Spacer(Modifier.size(60.dp))
+        Spacer(Modifier.size(70.dp))
     } else {
         Box(
             modifier = Modifier
-                .size(60.dp)
+                .size(70.dp)
                 .pointerInput(app.packageName) {
                     detectTapGestures(
                         onTap = { AppRepository.launchApp(context, app.packageName) }
@@ -152,7 +151,7 @@ private fun DockSlot(app: AppInfo?) {
             Image(
                 bitmap = bmp,
                 contentDescription = app.label,
-                modifier = Modifier.size(52.dp)
+                modifier = Modifier.size(60.dp)
             )
         }
     }
@@ -162,7 +161,7 @@ private fun DockSlot(app: AppInfo?) {
 private fun DockDrawerButton(onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .size(60.dp)
+            .size(80.dp)
             .pointerInput(Unit) {
                 detectTapGestures(onTap = { onClick() })
             },
@@ -171,7 +170,7 @@ private fun DockDrawerButton(onClick: () -> Unit) {
         Image(
             painter = painterResource(id = R.drawable.ic_drawer),
             contentDescription = "Cassetto",
-            modifier = Modifier.size(50.dp)
+            modifier = Modifier.size(70.dp)
         )
     }
 }
