@@ -28,7 +28,6 @@ fun LauncherRoot(
     onOpenSettings: () -> Unit
 ) {
     Box(Modifier.fillMaxSize()) {
-        // Home visibile solo se il cassetto è chiuso
         if (!drawerOpen) {
             HomeScreen(
                 onOpenDrawer = { onDrawerOpenChange(true) },
@@ -101,16 +100,12 @@ fun HomeScreen(
                         cellWidth = cellWidth,
                         cellHeight = cellHeight,
                         onClick = { AppRepository.launchApp(context, app.packageName) },
-                        onLongPress = { },
-                        onDragStart = { },
-                        onDrag = { _, _ -> },
-                        onDragEnd = { }
+                        onLongPress = { }
                     )
                 }
             }
         }
 
-        // DOCK — pulsante cassetto
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
