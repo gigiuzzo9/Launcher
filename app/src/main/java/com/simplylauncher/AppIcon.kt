@@ -1,7 +1,7 @@
 package com.simplylauncher
 
+import android.graphics.drawable.Drawable
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
@@ -10,6 +10,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -31,7 +33,7 @@ fun AppIcon(
 ) {
     val iconSize = cellWidth * 0.6f
 
-    // Cache del bitmap — chiave stabile basata su packageName
+    // Bitmap cachato: calcolato UNA SOLA VOLTA per app
     val bmp = remember(app.packageName) {
         app.icon.toBitmap(96, 96).asImageBitmap()
     }
