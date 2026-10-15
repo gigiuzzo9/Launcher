@@ -17,6 +17,7 @@ object Prefs {
     private val KEY_COLS = intPreferencesKey("grid_cols")
     private val KEY_ROWS = intPreferencesKey("grid_rows")
     private val KEY_HOME_ITEMS = stringPreferencesKey("home_items")
+    private val KEY_DOCK_ITEMS = stringPreferencesKey("dock_items")
 
     fun colorFlow(context: Context): Flow<Int> =
         context.dataStore.data.map { it[KEY_COLOR] ?: 0xFF000000.toInt() }
@@ -33,6 +34,11 @@ object Prefs {
     fun homeItemsFlow(context: Context): Flow<List<String>> =
         context.dataStore.data.map { prefs ->
             prefs[KEY_HOME_ITEMS]?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+        }
+
+    fun dockItemsFlow(context: Context): Flow<List<String>> =
+        context.dataStore.data.map { prefs ->
+            prefs[KEY_DOCK_ITEMS]?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
         }
 
     suspend fun setColor(context: Context, color: Int) {
@@ -53,5 +59,9 @@ object Prefs {
 
     suspend fun setHomeItems(context: Context, items: List<String>) {
         context.dataStore.edit { it[KEY_HOME_ITEMS] = items.joinToString(",") }
+    }
+
+    suspend fun setDockItems(context: Context, items: List<String>) {
+        context.dataStore.edit { it[KEY_DOCK_ITEMS] = items.joinToString(",") }
     }
 }
