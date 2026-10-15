@@ -5,11 +5,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
-import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class HomeActivity : ComponentActivity() {
 
@@ -26,7 +27,14 @@ class HomeActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
-        askLauncherIfNeeded()
+        // Setup iniziale: popola home e dock la prima volta
+        if (FirstRunSetup.isFirstRun(this)) {
+            lifecycleScope.launch {
+                FirstRunSetup.populateHome(this@HomeActivity)
+                FirstRunSetup.markDone(this@HomeActivity)
+                reloadTick.value++
+            }
+        }
 
         registerReceiver(
             reloadReceiver,
@@ -48,7 +56,6 @@ class HomeActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // Tasto Home fisico di Android: chiude il cassetto
         if (intent.hasCategory(Intent.CATEGORY_HOME)) {
             drawerOpen.value = false
         }
@@ -56,7 +63,6 @@ class HomeActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Quando l'activity torna in primo piano, chiudi il cassetto
         drawerOpen.value = false
     }
 
@@ -69,38 +75,6 @@ class HomeActivity : ComponentActivity() {
     override fun onBackPressed() {
         if (drawerOpen.value) {
             drawerOpen.value = false
-        }
-    }
-
-    private fun askLauncherIfNeeded() {
-        // Se siamo già il launcher predefinito, non fare nulla
-        val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-        val res = packageManager.resolveActivity(homeIntent, 0)
-        val currentHome = res?.activityInfo?.packageName
-
-        if (currentHome == packageName) {
-            return
-        }
-
-        // Salva un flag per non riproporre ogni volta
-        val prefs = getSharedPreferences("launcher_flags", MODE_PRIVATE)
-        val alreadyAsked = prefs.getBoolean("asked_launcher", false)
-        if (alreadyAsked) return
-
-        prefs.edit().putBoolean("asked_launcher", true).apply()
-
-        // Apri la pagina di scelta launcher
-        try {
-            val intent = Intent(Settings.ACTION_HOME_SETTINGS)
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(intent)
-        } catch (e: Exception) {
-            // Fallback
-            try {
-                val intent = Intent(Settings.ACTION_SETTINGS)
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(intent)
-            } catch (e2: Exception) { }
         }
     }
 }
