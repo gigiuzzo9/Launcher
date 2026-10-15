@@ -2,67 +2,9 @@ package com.simplylauncher
 
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
+import android.provider.MediaStore
 
 object FirstRunSetup {
-
-    // Package name "noti" per le app comuni, proviamo in ordine
-    private val dialerCandidates = listOf(
-        "com.android.dialer",
-        "com.google.android.dialer",
-        "com.samsung.android.dialer",
-        "com.oneplus.dialer",
-        "com.oppo.dialer",
-        "com.coloros.phonemanager"
-    )
-    private val messagesCandidates = listOf(
-        "com.android.mms",
-        "com.google.android.apps.messaging",
-        "com.samsung.android.messaging",
-        "com.oneplus.mms",
-        "com.oppo.mms"
-    )
-    private val storeCandidates = listOf(
-        "com.android.vending",
-        "com.google.android.apps.store",
-        "com.heytap.market",
-        "com.oppo.market",
-        "com.coloros.appstore"
-    )
-    private val filesCandidates = listOf(
-        "com.android.documentsui",
-        "com.google.android.documentsui",
-        "com.coloros.filemanager",
-        "com.oppo.filemanager"
-    )
-    private val cameraCandidates = listOf(
-        "com.android.camera",
-        "com.google.android.GoogleCamera",
-        "com.oppo.camera",
-        "com.coloros.camera",
-        "com.oneplus.camera"
-    )
-    private val calculatorCandidates = listOf(
-        "com.android.calculator2",
-        "com.google.android.calculator",
-        "com.coloros.calculator",
-        "com.oppo.calculator"
-    )
-    private val clockCandidates = listOf(
-        "com.android.deskclock",
-        "com.google.android.deskclock",
-        "com.coloros.alarmclock",
-        "com.oppo.alarmclock"
-    )
-    private val settingsCandidates = listOf(
-        "com.android.settings"
-    )
-    private val browserCandidates = listOf(
-        "com.android.chrome",
-        "com.heytap.browser",
-        "com.oppo.browser",
-        "com.coloros.browser"
-    )
 
     fun isFirstRun(context: Context): Boolean {
         val prefs = context.getSharedPreferences("launcher_flags", Context.MODE_PRIVATE)
@@ -75,34 +17,36 @@ object FirstRunSetup {
     }
 
     suspend fun populateHome(context: Context) {
-        val homeDefaults = listOf(
-            findFirstInstalled(context, calculatorCandidates),
-            findFirstInstalled(context, clockCandidates),
-            findFirstInstalled(context, cameraCandidates),
-            findFirstInstalled(context, browserCandidates),
-            findFirstInstalled(context, settingsCandidates)
-        ).filterNotNull()
+        // HOME: 5 app standard
+        val homeDefaults = listOfNotNull(
+            findPackageForIntent(context, Intent(Intent.ACTION_DIAL)),                          // Telefono
+            findPackageForIntent(context, Intent(Intent.ACTION_VIEW).setType("vnd.android-dir/mms-sms")), // Messaggi
+            findPackageForIntent(context, Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)), // Fotocamera
+            findPackageForIntent(context, Intent(Intent.ACTION_VIEW).setData(android.net.Uri.parse("https://www.google.com"))), // Browser
+            findPackageForIntent(context, Intent(android.provider.Settings.ACTION_SETTINGS))    // Impostazioni
+        )
 
-        val dockDefaults = listOf(
-            findFirstInstalled(context, dialerCandidates),
-            findFirstInstalled(context, messagesCandidates),
-            findFirstInstalled(context, storeCandidates),
-            findFirstInstalled(context, filesCandidates)
-        ).filterNotNull()
+        // DOCK: 4 app standard
+        val dockDefaults = listOfNotNull(
+            findPackageForIntent(context, Intent(Intent.ACTION_DIAL)),                          // Telefono
+            findPackageForIntent(context, Intent(Intent.ACTION_VIEW).setType("vnd.android-dir/mms-sms")), // Messaggi
+            findPackageForIntent(context, Intent(Intent.ACTION_VIEW).setData(android.net.Uri.parse("market://search?q=apps"))), // Store
+            findPackageForIntent(context, Intent(Intent.ACTION_VIEW).setDataAndType(android.net.Uri.parse("content://"), "resource/folder")) // File manager
+        )
 
-        Prefs.setHomeItems(context, homeDefaults)
-        Prefs.setDockItems(context, dockDefaults)
+        Prefs.setHomeItems(context, homeDefaults.distinct())
+        Prefs.setDockItems(context, dockDefaults.distinct())
     }
 
-    private fun findFirstInstalled(context: Context, candidates: List<String>): String? {
-        for (pkg in candidates) {
-            try {
-                context.packageManager.getApplicationInfo(pkg, 0)
-                return pkg
-            } catch (e: PackageManager.NameNotFoundException) {
-                // Continua col prossimo
-            }
-        }
-        return null
+    /**
+     * Trova il package name dell'app che risponde a un Intent specifico.
+     * Funziona con qualsiasi telefono, senza hardcodare package name.
+     */
+    private fun findPackageForIntent(context: Context, intent: Intent): String? {
+        val pm = context.packageManager
+        // Trova tutte le activity che rispondono all'intent
+        val resolveInfos = pm.queryIntentActivities(intent, 0)
+        // Prende la prima (che di solito è quella predefinita)
+        return resolveInfos.firstOrNull()?.activityInfo?.packageName
     }
 }
