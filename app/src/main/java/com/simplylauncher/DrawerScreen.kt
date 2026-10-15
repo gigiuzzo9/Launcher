@@ -49,7 +49,7 @@ fun DrawerScreen(
                 .fillMaxHeight(0.86f)
                 .align(Alignment.Center)
                 .offset(y = (-20).dp)
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(8.dp))
                 .background(Color(color).copy(alpha = alpha))
         ) {
             LazyVerticalGrid(
