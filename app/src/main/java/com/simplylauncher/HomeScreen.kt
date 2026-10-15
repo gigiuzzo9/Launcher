@@ -152,7 +152,7 @@ private fun DockSlot(app: AppInfo?, modifier: Modifier = Modifier) {
                 Image(
                     bitmap = bmp,
                     contentDescription = app.label,
-                    modifier = Modifier.size(70.dp)
+                    modifier = Modifier.size(75.dp)
                 )
             }
         }
@@ -172,7 +172,7 @@ private fun DockDrawerButton(onClick: () -> Unit, modifier: Modifier = Modifier)
         Image(
             painter = painterResource(id = R.drawable.ic_drawer),
             contentDescription = "Cassetto",
-            modifier = Modifier.size(55.dp)
+            modifier = Modifier.size(65.dp)
         )
     }
 }
