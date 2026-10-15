@@ -70,9 +70,6 @@ fun DrawerScreen(
                             onClose()
                         },
                         onLongPress = { },
-                        onDragStart = { },
-                        onDrag = { _, _ -> },
-                        onDragEnd = { },
                         textColor = textColor
                     )
                 }
