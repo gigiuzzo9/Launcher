@@ -28,10 +28,13 @@ fun LauncherRoot(
     onOpenSettings: () -> Unit
 ) {
     Box(Modifier.fillMaxSize()) {
-        HomeScreen(
-            onOpenDrawer = { onDrawerOpenChange(true) },
-            onOpenSettings = onOpenSettings
-        )
+        // Home visibile solo se il cassetto è chiuso
+        if (!drawerOpen) {
+            HomeScreen(
+                onOpenDrawer = { onDrawerOpenChange(true) },
+                onOpenSettings = onOpenSettings
+            )
+        }
 
         AnimatedVisibility(
             visible = drawerOpen,
@@ -107,7 +110,7 @@ fun HomeScreen(
             }
         }
 
-        // DOCK — pulsante cassetto a 55.dp, senza effetto click
+        // DOCK — pulsante cassetto
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
