@@ -1,6 +1,5 @@
 package com.simplylauncher
 
-import android.graphics.drawable.Drawable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -31,11 +30,10 @@ fun AppIcon(
     textColor: Color = Color.White
 ) {
     val iconSize = cellWidth * 0.6f
-    val iconSizePx = with(androidx.compose.ui.platform.LocalDensity.current) { iconSize.roundToPx() }
 
-    // Cache del bitmap, calcolato una sola volta per app + dimensione
-    val bmp = remember(app.packageName, iconSizePx) {
-        app.icon.toBitmap(iconSizePx, iconSizePx).asImageBitmap()
+    // Cache del bitmap — chiave stabile basata su packageName
+    val bmp = remember(app.packageName) {
+        app.icon.toBitmap(96, 96).asImageBitmap()
     }
 
     Column(
@@ -47,17 +45,6 @@ fun AppIcon(
                 detectTapGestures(
                     onTap = { onClick() },
                     onLongPress = { onLongPress() }
-                )
-            }
-            .pointerInput(app.packageName) {
-                detectDragGesturesAfterLongPress(
-                    onDragStart = { onDragStart() },
-                    onDrag = { change, _ ->
-                        change.consume()
-                        onDrag(change.position.x, change.position.y)
-                    },
-                    onDragEnd = { onDragEnd() },
-                    onDragCancel = { onDragEnd() }
                 )
             }
     ) {
