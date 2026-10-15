@@ -116,7 +116,7 @@ fun HomeScreen(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp)
-                .padding(bottom = 50.dp),
+                .padding(bottom = 53.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             DockSlot(dockApps.getOrNull(0), Modifier.weight(1f))
@@ -138,7 +138,7 @@ private fun DockSlot(app: AppInfo?, modifier: Modifier = Modifier) {
         if (app != null) {
             Box(
                 modifier = Modifier
-                    .size(70.dp)
+                    .size(80.dp)
                     .pointerInput(app.packageName) {
                         detectTapGestures(
                             onTap = { AppRepository.launchApp(context, app.packageName) }
@@ -152,7 +152,7 @@ private fun DockSlot(app: AppInfo?, modifier: Modifier = Modifier) {
                 Image(
                     bitmap = bmp,
                     contentDescription = app.label,
-                    modifier = Modifier.size(60.dp)
+                    modifier = Modifier.size(70.dp)
                 )
             }
         }
@@ -172,7 +172,7 @@ private fun DockDrawerButton(onClick: () -> Unit, modifier: Modifier = Modifier)
         Image(
             painter = painterResource(id = R.drawable.ic_drawer),
             contentDescription = "Cassetto",
-            modifier = Modifier.size(70.dp)
+            modifier = Modifier.size(55.dp)
         )
     }
 }
