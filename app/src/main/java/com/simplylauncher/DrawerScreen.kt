@@ -46,8 +46,9 @@ fun DrawerScreen(
         Box(
             Modifier
                 .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.82f)
+                .fillMaxHeight(0.86f)
                 .align(Alignment.Center)
+                .offset(y = (-20).dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(Color(color).copy(alpha = alpha))
         ) {
