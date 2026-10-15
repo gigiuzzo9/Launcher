@@ -172,7 +172,7 @@ private fun DockDrawerButton(onClick: () -> Unit, modifier: Modifier = Modifier)
         Image(
             painter = painterResource(id = R.drawable.ic_drawer),
             contentDescription = "Cassetto",
-            modifier = Modifier.size(60.dp)
+            modifier = Modifier.size(62.dp)
         )
     }
 }
