@@ -152,7 +152,7 @@ private fun DockSlot(app: AppInfo?, modifier: Modifier = Modifier) {
                 Image(
                     bitmap = bmp,
                     contentDescription = app.label,
-                    modifier = Modifier.size(75.dp)
+                    modifier = Modifier.size(70.dp)
                 )
             }
         }
