@@ -18,6 +18,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -59,10 +60,14 @@ fun HomeScreen(
     val cols by Prefs.colsFlow(context).collectAsState(initial = 4)
     val rows by Prefs.rowsFlow(context).collectAsState(initial = 6)
     val homeItems by Prefs.homeItemsFlow(context).collectAsState(initial = emptyList())
+    val dockItems by Prefs.dockItemsFlow(context).collectAsState(initial = emptyList())
 
     val allApps = remember { AppRepository.loadInstalledApps(context) }
     val homeApps = remember(homeItems, allApps) {
         homeItems.mapNotNull { pkg -> allApps.find { it.packageName == pkg } }
+    }
+    val dockApps = remember(dockItems, allApps) {
+        dockItems.mapNotNull { pkg -> allApps.find { it.packageName == pkg } }
     }
 
     val screenHeight = config.screenHeightDp.dp
@@ -106,23 +111,67 @@ fun HomeScreen(
             }
         }
 
-        Box(
+        // DOCK: 5 slot — 2 app, cassetto, 2 app
+        Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
                 .padding(bottom = 53.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            DockSlot(dockApps.getOrNull(0))
+            DockSlot(dockApps.getOrNull(1))
+            DockDrawerButton(onOpenDrawer)
+            DockSlot(dockApps.getOrNull(2))
+            DockSlot(dockApps.getOrNull(3))
+        }
+    }
+}
+
+@Composable
+private fun DockSlot(app: AppInfo?) {
+    val context = LocalContext.current
+    if (app == null) {
+        Spacer(Modifier.size(60.dp))
+    } else {
+        Box(
+            modifier = Modifier
+                .size(60.dp)
+                .pointerInput(app.packageName) {
+                    detectTapGestures(
+                        onTap = { AppRepository.launchApp(context, app.packageName) }
+                    )
+                },
             contentAlignment = Alignment.Center
         ) {
+            val bmp = remember(app.packageName) {
+                AppIconCache.get(app.packageName, app)
+            }
             Image(
-                painter = painterResource(id = R.drawable.ic_drawer),
-                contentDescription = "Cassetto",
-                modifier = Modifier
-                    .size(70.dp)
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onTap = { onOpenDrawer() }
-                        )
-                    }
+                bitmap = bmp,
+                contentDescription = app.label,
+                modifier = Modifier.size(52.dp)
             )
         }
+    }
+}
+
+@Composable
+private fun DockDrawerButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(60.dp)
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { onClick() })
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.ic_drawer),
+            contentDescription = "Cassetto",
+            modifier = Modifier.size(50.dp)
+        )
     }
 }
