@@ -110,7 +110,6 @@ fun HomeScreen(
             }
         }
 
-        // DOCK: 5 slot con weight(1f) — ognuno occupa esattamente 1/5
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -138,7 +137,7 @@ private fun DockSlot(app: AppInfo?, modifier: Modifier = Modifier) {
         if (app != null) {
             Box(
                 modifier = Modifier
-                    .size(70.dp)
+                    .size(80.dp)
                     .pointerInput(app.packageName) {
                         detectTapGestures(
                             onTap = { AppRepository.launchApp(context, app.packageName) }
@@ -169,10 +168,15 @@ private fun DockDrawerButton(onClick: () -> Unit, modifier: Modifier = Modifier)
             },
         contentAlignment = Alignment.Center
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.ic_drawer),
-            contentDescription = "Cassetto",
-            modifier = Modifier.size(65.dp)
-        )
+        Box(
+            modifier = Modifier.size(80.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_drawer),
+                contentDescription = "Cassetto",
+                modifier = Modifier.size(60.dp)
+            )
+        }
     }
 }
