@@ -1,11 +1,20 @@
 <resources>
     <string name="app_name">Simple Launcher</string>
-    <string name="imposta_launcher">Imposta come launcher predefinito</string>
-    <string name="imposta_launcher_desc">Tocca per scegliere questo launcher</string>
-    <string name="menu_apri">Apri</string>
-    <string name="menu_info">Info app</string>
-    <string name="menu_disinstalla">Disinstalla</string>
-    <string name="menu_aggiungi_home">Aggiungi alla home</string>
-    <string name="menu_rimuovi_home">Rimuovi dalla home</string>
-    <string name="impostazioni">Impostazioni</string>
+
+    <!-- Impostazioni -->
+    <string name="settings_title">Impostazioni</string>
+
+    <!-- Menu contestuale -->
+    <string name="menu_uninstall">Disinstalla</string>
+    <string name="menu_rename">Rinomina</string>
+    <string name="menu_remove">Rimuovi</string>
+
+    <!-- Dialog rinomina -->
+    <string name="rename_title">Rinomina app</string>
+    <string name="rename_hint">Nuovo nome</string>
+    <string name="rename_confirm">Conferma</string>
+    <string name="rename_cancel">Annulla</string>
+
+    <!-- Home -->
+    <string name="home_empty_message">Apri il cassetto e aggiungi le tue app</string>
 </resources>
