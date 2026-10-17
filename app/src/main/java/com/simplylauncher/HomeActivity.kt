@@ -48,7 +48,8 @@ class HomeActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
 
-        window.statusBarColor = Color.parseColor("#80000000")
+        // Barra superiore nera, barra inferiore semitrasparente
+        window.statusBarColor = Color.BLACK
         window.navigationBarColor = Color.parseColor("#80000000")
 
         homeRecyclerView = findViewById(R.id.homeRecyclerView)
@@ -113,6 +114,10 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Se il cassetto è aperto e l'app torna in primo piano (tasto Home), chiudilo
+        if (drawerOpen) {
+            closeDrawer()
+        }
         loadHomeApps()
         loadDockApps()
         loadDrawerApps()
@@ -134,7 +139,6 @@ class HomeActivity : AppCompatActivity() {
         if (drawerOpen) return
         drawerOpen = true
 
-        // Nasconde la home
         homeRecyclerView.visibility = View.INVISIBLE
         dockLayout.visibility = View.INVISIBLE
         emptyMessage.visibility = View.INVISIBLE
@@ -152,7 +156,6 @@ class HomeActivity : AppCompatActivity() {
 
         drawerOverlay.visibility = View.GONE
 
-        // Mostra la home
         homeRecyclerView.visibility = View.VISIBLE
         dockLayout.visibility = View.VISIBLE
 
