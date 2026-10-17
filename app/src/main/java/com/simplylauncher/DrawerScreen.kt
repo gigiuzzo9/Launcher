@@ -18,6 +18,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 @Composable
 fun DrawerScreen(
@@ -45,7 +47,6 @@ fun DrawerScreen(
     val isDarkBackground = isColorDark(Color(color))
     val textColor = if (isDarkBackground) Color.White else Color.Black
 
-    // Stato del menu contestuale
     var menuApp by remember { mutableStateOf<AppInfo?>(null) }
 
     Box(
@@ -118,7 +119,6 @@ fun DrawerScreen(
             }
         }
 
-        // Menu contestuale
         menuApp?.let { app ->
             Box(
                 modifier = Modifier
@@ -132,23 +132,23 @@ fun DrawerScreen(
                     isInHome = homeItems.contains(app.packageName),
                     isInDock = dockItems.contains(app.packageName),
                     onRemoveFromHome = {
-                        kotlinx.coroutines.GlobalScope.launch {
+                        GlobalScope.launch {
                             Prefs.setHomeItems(context, homeItems - app.packageName)
                         }
                     },
                     onAddToDock = {
-                        kotlinx.coroutines.GlobalScope.launch {
+                        GlobalScope.launch {
                             if (dockItems.size < 4) {
                                 Prefs.setDockItems(context, dockItems + app.packageName)
                             }
                         }
                     },
                     onRemoveFromDock = {
-                        kotlinx.coroutines.GlobalScope.launch {
+                        GlobalScope.launch {
                             Prefs.setDockItems(context, dockItems - app.packageName)
                         }
                     },
-                    onRename = { /* TODO: implementare dialog rinomina */ },
+                    onRename = { },
                     context = context
                 )
             }
