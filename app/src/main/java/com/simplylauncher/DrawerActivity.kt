@@ -3,7 +3,6 @@ package com.simplylauncher
 import android.graphics.Color
 import android.os.Bundle
 import android.view.View
-import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
 import androidx.lifecycle.lifecycleScope
@@ -22,10 +21,11 @@ class DrawerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_drawer)
 
+        window.statusBarColor = Color.parseColor("#80000000")
+        window.navigationBarColor = Color.parseColor("#80000000")
+
         drawerRecyclerView = findViewById(R.id.drawerRecyclerView)
         drawerContainer = findViewById(R.id.drawerContainer)
-
-        applyBackgroundColor()
 
         drawerRecyclerView.layoutManager = GridLayoutManager(this, 4)
         adapter = AppAdapter(
@@ -33,13 +33,16 @@ class DrawerActivity : AppCompatActivity() {
                 AppRepository.launchApp(this, app.packageName)
                 finish()
             },
-            onLongPress = { app, view ->
-                showContextMenu(app, view)
-            }
+            onLongPress = { app, view -> showContextMenu(app, view) }
         )
         drawerRecyclerView.adapter = adapter
 
         loadDrawerApps()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        applyBackgroundColor()
     }
 
     private fun applyBackgroundColor() {
@@ -90,8 +93,8 @@ class DrawerActivity : AppCompatActivity() {
         }
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        finish()
+    override fun finish() {
+        super.finish()
+        overridePendingTransition(0, R.anim.slide_out_down)
     }
 }
