@@ -1,4 +1,4 @@
-package com.simplylauncher 
+package com.simplylauncher
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
@@ -20,12 +21,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 @Composable
 fun LauncherRoot(
     drawerOpen: Boolean,
     onDrawerOpenChange: (Boolean) -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onStartDrag: (AppInfo, Offset) -> Unit
 ) {
     Box(Modifier.fillMaxSize()) {
         if (!drawerOpen) {
@@ -42,8 +45,31 @@ fun LauncherRoot(
         ) {
             DrawerScreen(
                 onClose = { onDrawerOpenChange(false) },
-                onOpenSettings = onOpenSettings
+                onOpenSettings = onOpenSettings,
+                onStartDrag = onStartDrag
             )
+        }
+
+        // Icona che segue il dito durante il drag
+        if (DragDropState.isDragging && DragDropState.draggedApp != null) {
+            val app = DragDropState.draggedApp!!
+            val bmp = remember(app.packageName) {
+                AppIconCache.get(app.packageName, app)
+            }
+            Box(
+                modifier = Modifier
+                    .offset(
+                        x = (DragDropState.dragPosition.x / 3).dp,
+                        y = (DragDropState.dragPosition.y / 3).dp
+                    )
+                    .size(80.dp)
+            ) {
+                Image(
+                    bitmap = bmp,
+                    contentDescription = app.label,
+                    modifier = Modifier.size(64.dp)
+                )
+            }
         }
     }
 }
@@ -55,6 +81,7 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val config = LocalConfiguration.current
+    val scope = rememberCoroutineScope()
 
     val cols by Prefs.colsFlow(context).collectAsState(initial = 4)
     val rows by Prefs.rowsFlow(context).collectAsState(initial = 6)
@@ -73,6 +100,20 @@ fun HomeScreen(
     val screenWidth = config.screenWidthDp.dp
     val cellWidth = screenWidth / cols
     val cellHeight = (screenHeight / rows) * 0.8f
+
+    // Stato del menu contestuale
+    var menuApp by remember { mutableStateOf<AppInfo?>(null) }
+
+    // Callback per il drop: quando si rilascia un'icona, la aggiunge alla home
+    LaunchedEffect(Unit) {
+        DragDropState.onDrop = { app, _ ->
+            scope.launch {
+                if (!homeItems.contains(app.packageName)) {
+                    Prefs.setHomeItems(context, homeItems + app.packageName)
+                }
+            }
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
 
@@ -99,17 +140,70 @@ fun HomeScreen(
                     .padding(top = 60.dp, bottom = 130.dp)
             ) {
                 items(homeApps, key = { it.packageName }) { app ->
-                    AppIcon(
-                        app = app,
-                        cellWidth = cellWidth,
-                        cellHeight = cellHeight,
-                        onClick = { AppRepository.launchApp(context, app.packageName) },
-                        onLongPress = { }
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(cellWidth, cellHeight)
+                            .pointerInput(app.packageName) {
+                                detectTapGestures(
+                                    onTap = {
+                                        AppRepository.launchApp(context, app.packageName)
+                                    },
+                                    onLongPress = {
+                                        menuApp = app
+                                    }
+                                )
+                            }
+                    ) {
+                        AppIcon(
+                            app = app,
+                            cellWidth = cellWidth,
+                            cellHeight = cellHeight,
+                            onClick = {},
+                            onLongPress = {},
+                            textColor = Color.White
+                        )
+                    }
                 }
             }
         }
 
+        // Menu contestuale
+        menuApp?.let { app ->
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(16.dp)
+            ) {
+                AppContextMenu(
+                    expanded = true,
+                    onDismiss = { menuApp = null },
+                    app = app,
+                    isInHome = homeItems.contains(app.packageName),
+                    isInDock = dockItems.contains(app.packageName),
+                    onRemoveFromHome = {
+                        scope.launch {
+                            Prefs.setHomeItems(context, homeItems - app.packageName)
+                        }
+                    },
+                    onAddToDock = {
+                        scope.launch {
+                            if (dockItems.size < 4) {
+                                Prefs.setDockItems(context, dockItems + app.packageName)
+                            }
+                        }
+                    },
+                    onRemoveFromDock = {
+                        scope.launch {
+                            Prefs.setDockItems(context, dockItems - app.packageName)
+                        }
+                    },
+                    onRename = { /* TODO: implementare dialog rinomina */ },
+                    context = context
+                )
+            }
+        }
+
+        // DOCK
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
