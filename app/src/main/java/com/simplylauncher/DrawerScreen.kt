@@ -16,7 +16,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -84,11 +83,9 @@ fun DrawerScreen(
                                     val longPress = awaitLongPressOrCancellation(down.id)
 
                                     if (longPress != null) {
-                                        // Long press rilevato: aspetta se muove o resta fermo
                                         var isDrag = false
                                         var dragPos = longPress.position
 
-                                        // Aspetta 300ms per vedere se muove
                                         val moveEvent = withTimeoutOrNull(300L) {
                                             awaitPointerEvent()
                                         }
@@ -103,16 +100,13 @@ fun DrawerScreen(
                                         }
 
                                         if (isDrag) {
-                                            // DRAG: chiudi cassetto, inizia drag
                                             menuApp = null
                                             onStartDrag(app, dragPos)
                                             onClose()
                                         } else {
-                                            // MENU: mostra menu contestuale
                                             menuApp = app
                                         }
                                     } else {
-                                        // TAP normale: apri app
                                         AppRepository.launchApp(context, app.packageName)
                                         onClose()
                                     }
@@ -147,7 +141,6 @@ fun DrawerScreen(
                             Prefs.setHomeItems(context, homeItems - app.packageName)
                         }
                     },
-                    onAddToDock = { },
                     onRemoveFromDock = {
                         GlobalScope.launch {
                             Prefs.setDockItems(context, dockItems - app.packageName)
