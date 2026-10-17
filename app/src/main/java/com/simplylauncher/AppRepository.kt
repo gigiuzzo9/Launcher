@@ -12,9 +12,9 @@ object AppRepository {
         val resolved = pm.queryIntentActivities(intent, 0)
 
         return resolved
-            .map { it.activityInfo.applicationInfo }
-            .distinctBy { it.activityInfo.name }
-            .map { appInfo ->
+            .distinctBy { it.activityInfo.name }  // ← deduplica per Activity, non per package
+            .map { resolveInfo ->
+                val appInfo = resolveInfo.activityInfo.applicationInfo
                 AppInfo(
                     label = pm.getApplicationLabel(appInfo).toString(),
                     packageName = appInfo.packageName,
@@ -25,7 +25,6 @@ object AppRepository {
     }
 
     fun launchApp(context: Context, packageName: String) {
-        // Caso speciale: se è la nostra app, apri le Impostazioni
         if (packageName == context.packageName) {
             val intent = Intent(context, SettingsActivity::class.java)
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -33,7 +32,6 @@ object AppRepository {
             return
         }
 
-        // App normali: usa il launcher intent
         val intent = context.packageManager.getLaunchIntentForPackage(packageName)
         intent?.let {
             it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
