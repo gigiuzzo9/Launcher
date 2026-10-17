@@ -1,4 +1,4 @@
-package com.simplylauncher
+package com.simplelauncher
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
@@ -110,13 +110,12 @@ fun HomeScreen(
             }
         }
 
-        // DOCK: 5 slot con weight(1f) — ognuno occupa esattamente 1/5
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp)
-                .padding(bottom = 50.dp),
+                .padding(bottom = 53.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             DockSlot(dockApps.getOrNull(0), Modifier.weight(1f))
@@ -172,7 +171,7 @@ private fun DockDrawerButton(onClick: () -> Unit, modifier: Modifier = Modifier)
         Image(
             painter = painterResource(id = R.drawable.ic_drawer),
             contentDescription = "Cassetto",
-            modifier = Modifier.size(62.dp)
+            modifier = Modifier.size(65.dp)
         )
     }
 }
