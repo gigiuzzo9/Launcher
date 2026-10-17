@@ -48,9 +48,7 @@ class HomeActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
 
-        // Barra superiore NERA (come Compose)
         window.statusBarColor = Color.BLACK
-        // Barra inferiore semitrasparente
         window.navigationBarColor = Color.parseColor("#80000000")
 
         homeRecyclerView = findViewById(R.id.homeRecyclerView)
@@ -115,7 +113,6 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Tasto Home fisico: se il cassetto è aperto, chiudilo
         if (drawerOpen) {
             closeDrawer()
         }
@@ -140,6 +137,7 @@ class HomeActivity : AppCompatActivity() {
         if (drawerOpen) return
         drawerOpen = true
 
+        // Nasconde TUTTO quello che c'è nella home
         homeRecyclerView.visibility = View.INVISIBLE
         dockLayout.visibility = View.INVISIBLE
         emptyMessage.visibility = View.INVISIBLE
@@ -157,6 +155,7 @@ class HomeActivity : AppCompatActivity() {
 
         drawerOverlay.visibility = View.GONE
 
+        // Rimostra la home
         homeRecyclerView.visibility = View.VISIBLE
         dockLayout.visibility = View.VISIBLE
 
@@ -185,12 +184,15 @@ class HomeActivity : AppCompatActivity() {
 
             adapter.submitList(homeApps)
 
-            if (homeApps.isEmpty()) {
-                emptyMessage.visibility = TextView.VISIBLE
-                homeRecyclerView.visibility = RecyclerView.GONE
-            } else {
-                emptyMessage.visibility = TextView.GONE
-                homeRecyclerView.visibility = RecyclerView.VISIBLE
+            // Se il cassetto è aperto, NON toccare la visibilità
+            if (!drawerOpen) {
+                if (homeApps.isEmpty()) {
+                    emptyMessage.visibility = TextView.VISIBLE
+                    homeRecyclerView.visibility = RecyclerView.GONE
+                } else {
+                    emptyMessage.visibility = TextView.GONE
+                    homeRecyclerView.visibility = RecyclerView.VISIBLE
+                }
             }
         }
     }
@@ -215,7 +217,7 @@ class HomeActivity : AppCompatActivity() {
                 if (app != null) {
                     val imageView = ImageView(this@HomeActivity).apply {
                         setImageDrawable(app.icon)
-                        val size = (65 * resources.displayMetrics.density).toInt()
+                        val size = (55 * resources.displayMetrics.density).toInt()
                         layoutParams = FrameLayout.LayoutParams(size, size).apply {
                             gravity = Gravity.CENTER
                         }
