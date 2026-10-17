@@ -21,7 +21,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 
 @Composable
 fun DrawerScreen(
@@ -83,30 +82,35 @@ fun DrawerScreen(
                                     val longPress = awaitLongPressOrCancellation(down.id)
 
                                     if (longPress != null) {
+                                        // Long press: mostra SUBITO il menu
+                                        menuApp = app
+
+                                        // Poi monitora il dito per vedere se muove
                                         var isDrag = false
                                         var dragPos = longPress.position
 
-                                        val moveEvent = withTimeoutOrNull(300L) {
-                                            awaitPointerEvent()
-                                        }
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
 
-                                        if (moveEvent != null) {
-                                            val change = moveEvent.changes.firstOrNull { it.id == down.id }
-                                            if (change != null && (change.position - down.position).getDistance() > 15f) {
+                                            if (!change.pressed) break
+
+                                            if ((change.position - down.position).getDistance() > 15f) {
                                                 isDrag = true
                                                 dragPos = change.position
                                                 change.consume()
+                                                break
                                             }
                                         }
 
                                         if (isDrag) {
+                                            // Muovi: chiudi menu e cassetto, parti con il drag
                                             menuApp = null
                                             onStartDrag(app, dragPos)
                                             onClose()
-                                        } else {
-                                            menuApp = app
                                         }
                                     } else {
+                                        // Tap normale: apri l'app
                                         AppRepository.launchApp(context, app.packageName)
                                         onClose()
                                     }
