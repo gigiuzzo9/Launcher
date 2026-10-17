@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
 import android.provider.Settings
+import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -21,10 +22,12 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var emptyMessage: TextView
     private lateinit var drawerIcon: ImageView
     private lateinit var adapter: AppAdapter
+    private lateinit var dockSlots: List<View>
 
     private val reloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             loadHomeApps()
+            loadDockApps()
         }
     }
 
@@ -36,11 +39,18 @@ class HomeActivity : AppCompatActivity() {
         emptyMessage = findViewById(R.id.emptyMessage)
         drawerIcon = findViewById(R.id.drawerIcon)
 
-        // Setup RecyclerView
+        dockSlots = listOf(
+            findViewById(R.id.dockSlot1),
+            findViewById(R.id.dockSlot2),
+            findViewById(R.id.dockSlot3),
+            findViewById(R.id.dockSlot4)
+        )
+
+        // Setup RecyclerView home
         homeRecyclerView.layoutManager = GridLayoutManager(this, 4)
         adapter = AppAdapter(
             onClick = { app -> AppRepository.launchApp(this, app.packageName) },
-            onLongPress = { app -> showContextMenu(app) }
+            onLongPress = { app, view -> showContextMenu(app, view) }
         )
         homeRecyclerView.adapter = adapter
 
@@ -49,16 +59,16 @@ class HomeActivity : AppCompatActivity() {
             startActivity(Intent(this, DrawerActivity::class.java))
         }
 
-        // Prima installazione: popola home e dock
+        // Prima installazione
         if (FirstRunSetup.isFirstRun(this)) {
             lifecycleScope.launch {
                 FirstRunSetup.populateHome(this@HomeActivity)
                 FirstRunSetup.markDone(this@HomeActivity)
                 loadHomeApps()
+                loadDockApps()
             }
         }
 
-        // Chiedi di impostare come launcher (solo prima volta)
         askLauncherIfNeeded()
 
         registerReceiver(
@@ -71,6 +81,7 @@ class HomeActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         loadHomeApps()
+        loadDockApps()
     }
 
     override fun onDestroy() {
@@ -81,7 +92,7 @@ class HomeActivity : AppCompatActivity() {
     private fun loadHomeApps() {
         lifecycleScope.launch {
             val homeItems = Prefs.homeItemsFlow(this@HomeActivity).first()
-            val allApps = AppRepository.loadInstalledApps(this@HomeActivity)
+            val allApps = AppRepository.loadInstalledAppsWithCustomLabels(this@HomeActivity)
             val homeApps = homeItems.mapNotNull { pkg -> allApps.find { it.packageName == pkg } }
 
             adapter.submitList(homeApps)
@@ -96,8 +107,64 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun showContextMenu(app: AppInfo) {
-        // TODO: implementare menu contestuale
+    private fun loadDockApps() {
+        lifecycleScope.launch {
+            val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
+            val allApps = AppRepository.loadInstalledAppsWithCustomLabels(this@HomeActivity)
+            val dockApps = dockItems.mapNotNull { pkg -> allApps.find { it.packageName == pkg } }
+
+            dockSlots.forEachIndexed { index, slot ->
+                val frame = slot as android.widget.FrameLayout
+                frame.removeAllViews()
+
+                val app = dockApps.getOrNull(index)
+                if (app != null) {
+                    val imageView = ImageView(this@HomeActivity).apply {
+                        setImageDrawable(app.icon)
+                        layoutParams = android.widget.FrameLayout.LayoutParams(60, 60)
+                        (layoutParams as android.widget.FrameLayout.LayoutParams).gravity = android.view.Gravity.CENTER
+                    }
+                    frame.addView(imageView)
+
+                    frame.setOnClickListener {
+                        AppRepository.launchApp(this@HomeActivity, app.packageName)
+                    }
+                    frame.setOnLongClickListener { view ->
+                        showContextMenu(app, view)
+                        true
+                    }
+                }
+            }
+        }
+    }
+
+    private fun showContextMenu(app: AppInfo, anchor: View) {
+        lifecycleScope.launch {
+            val homeItems = Prefs.homeItemsFlow(this@HomeActivity).first()
+            val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
+
+            AppContextMenu.show(
+                context = this@HomeActivity,
+                anchor = anchor,
+                app = app,
+                isInHome = homeItems.contains(app.packageName),
+                isInDock = dockItems.contains(app.packageName),
+                onRemove = {
+                    lifecycleScope.launch {
+                        Prefs.setHomeItems(this@HomeActivity, homeItems - app.packageName)
+                        Prefs.setDockItems(this@HomeActivity, dockItems - app.packageName)
+                        loadHomeApps()
+                        loadDockApps()
+                    }
+                },
+                onRename = {
+                    RenameDialog.show(this@HomeActivity, app) {
+                        loadHomeApps()
+                        loadDockApps()
+                    }
+                }
+            )
+        }
     }
 
     private fun askLauncherIfNeeded() {
