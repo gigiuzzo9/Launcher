@@ -13,7 +13,7 @@ object AppRepository {
 
         return resolved
             .map { it.activityInfo.applicationInfo }
-            .distinctBy { it.packageName }
+            .distinctBy { it.activityInfo.name }
             .map { appInfo ->
                 AppInfo(
                     label = pm.getApplicationLabel(appInfo).toString(),
