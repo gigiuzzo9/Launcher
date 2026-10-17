@@ -3,6 +3,10 @@
 
     <!-- Impostazioni -->
     <string name="settings_title">Impostazioni</string>
+    <string name="settings_transparency">Trasparenza: %d%%</string>
+    <string name="settings_transparency_default">Trasparenza: 90%</string>
+    <string name="settings_columns">Colonne</string>
+    <string name="settings_rows">Righe</string>
 
     <!-- Menu contestuale -->
     <string name="menu_uninstall">Disinstalla</string>
