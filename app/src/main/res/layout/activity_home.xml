@@ -10,8 +10,8 @@
         android:id="@+id/homeRecyclerView"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:paddingTop="60dp"
-        android:paddingBottom="130dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="100dp"
         android:clipToPadding="false"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -36,61 +36,56 @@
     <LinearLayout
         android:id="@+id/dockLayout"
         android:layout_width="match_parent"
-        android:layout_height="80dp"
+        android:layout_height="90dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingStart="8dp"
         android:paddingEnd="8dp"
-        android:layout_marginBottom="53dp"
+        android:layout_marginBottom="40dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- Slot 1 -->
         <FrameLayout
             android:id="@+id/dockSlot1"
             android:layout_width="0dp"
-            android:layout_height="80dp"
+            android:layout_height="90dp"
             android:layout_weight="1"
             android:gravity="center" />
 
-        <!-- Slot 2 -->
         <FrameLayout
             android:id="@+id/dockSlot2"
             android:layout_width="0dp"
-            android:layout_height="80dp"
+            android:layout_height="90dp"
             android:layout_weight="1"
             android:gravity="center" />
 
-        <!-- Pulsante cassetto -->
         <FrameLayout
             android:id="@+id/dockDrawerButton"
             android:layout_width="0dp"
-            android:layout_height="80dp"
+            android:layout_height="90dp"
             android:layout_weight="1"
             android:gravity="center">
 
             <ImageView
                 android:id="@+id/drawerIcon"
-                android:layout_width="65dp"
-                android:layout_height="65dp"
+                android:layout_width="70dp"
+                android:layout_height="70dp"
                 android:src="@drawable/ic_drawer"
                 android:contentDescription="@string/app_name" />
         </FrameLayout>
 
-        <!-- Slot 3 -->
         <FrameLayout
             android:id="@+id/dockSlot3"
             android:layout_width="0dp"
-            android:layout_height="80dp"
+            android:layout_height="90dp"
             android:layout_weight="1"
             android:gravity="center" />
 
-        <!-- Slot 4 -->
         <FrameLayout
             android:id="@+id/dockSlot4"
             android:layout_width="0dp"
-            android:layout_height="80dp"
+            android:layout_height="90dp"
             android:layout_weight="1"
             android:gravity="center" />
 
