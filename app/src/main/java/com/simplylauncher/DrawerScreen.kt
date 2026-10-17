@@ -1,6 +1,8 @@
 package com.simplylauncher
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -10,7 +12,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -18,7 +22,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun DrawerScreen(
     onClose: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onStartDrag: (AppInfo, Offset) -> Unit
 ) {
     val context = LocalContext.current
     val config = LocalConfiguration.current
@@ -27,6 +32,8 @@ fun DrawerScreen(
     val alpha by Prefs.alphaFlow(context).collectAsState(initial = 0.9f)
     val cols by Prefs.colsFlow(context).collectAsState(initial = 4)
     val rows by Prefs.rowsFlow(context).collectAsState(initial = 6)
+    val homeItems by Prefs.homeItemsFlow(context).collectAsState(initial = emptyList())
+    val dockItems by Prefs.dockItemsFlow(context).collectAsState(initial = emptyList())
 
     val apps = remember { AppRepository.loadInstalledApps(context) }
 
@@ -37,6 +44,9 @@ fun DrawerScreen(
 
     val isDarkBackground = isColorDark(Color(color))
     val textColor = if (isDarkBackground) Color.White else Color.Black
+
+    // Stato del menu contestuale
+    var menuApp by remember { mutableStateOf<AppInfo?>(null) }
 
     Box(
         Modifier
@@ -61,18 +71,86 @@ fun DrawerScreen(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 items(apps, key = { it.packageName }) { app ->
-                    AppIcon(
-                        app = app,
-                        cellWidth = cellWidth,
-                        cellHeight = cellHeight,
-                        onClick = {
-                            AppRepository.launchApp(context, app.packageName)
-                            onClose()
-                        },
-                        onLongPress = { },
-                        textColor = textColor
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(cellWidth, cellHeight)
+                            .pointerInput(app.packageName) {
+                                detectTapGestures(
+                                    onTap = {
+                                        AppRepository.launchApp(context, app.packageName)
+                                        onClose()
+                                    },
+                                    onLongPress = {
+                                        menuApp = app
+                                    }
+                                )
+                            }
+                            .pointerInput(app.packageName) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = { offset ->
+                                        menuApp = null
+                                        onStartDrag(app, offset)
+                                        onClose()
+                                    },
+                                    onDrag = { change, _ ->
+                                        change.consume()
+                                        DragDropState.updatePosition(change.position)
+                                    },
+                                    onDragEnd = {
+                                        DragDropState.endDrag()
+                                    },
+                                    onDragCancel = {
+                                        DragDropState.cancelDrag()
+                                    }
+                                )
+                            }
+                    ) {
+                        AppIcon(
+                            app = app,
+                            cellWidth = cellWidth,
+                            cellHeight = cellHeight,
+                            onClick = {},
+                            onLongPress = {},
+                            textColor = textColor
+                        )
+                    }
                 }
+            }
+        }
+
+        // Menu contestuale
+        menuApp?.let { app ->
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(16.dp)
+            ) {
+                AppContextMenu(
+                    expanded = true,
+                    onDismiss = { menuApp = null },
+                    app = app,
+                    isInHome = homeItems.contains(app.packageName),
+                    isInDock = dockItems.contains(app.packageName),
+                    onRemoveFromHome = {
+                        kotlinx.coroutines.GlobalScope.launch {
+                            Prefs.setHomeItems(context, homeItems - app.packageName)
+                        }
+                    },
+                    onAddToDock = {
+                        kotlinx.coroutines.GlobalScope.launch {
+                            if (dockItems.size < 4) {
+                                Prefs.setDockItems(context, dockItems + app.packageName)
+                            }
+                        }
+                    },
+                    onRemoveFromDock = {
+                        kotlinx.coroutines.GlobalScope.launch {
+                            Prefs.setDockItems(context, dockItems - app.packageName)
+                        }
+                    },
+                    onRename = { /* TODO: implementare dialog rinomina */ },
+                    context = context
+                )
             }
         }
     }
