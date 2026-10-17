@@ -101,7 +101,6 @@ fun HomeScreen(
     val cellWidth = screenWidth / cols
     val cellHeight = (screenHeight / rows) * 0.8f
 
-    // Stato del menu contestuale
     var menuApp by remember { mutableStateOf<AppInfo?>(null) }
 
     // Callback per il drop: quando si rilascia un'icona, la aggiunge alla home
@@ -167,7 +166,6 @@ fun HomeScreen(
             }
         }
 
-        // Menu contestuale
         menuApp?.let { app ->
             Box(
                 modifier = Modifier
@@ -197,13 +195,12 @@ fun HomeScreen(
                             Prefs.setDockItems(context, dockItems - app.packageName)
                         }
                     },
-                    onRename = { /* TODO: implementare dialog rinomina */ },
+                    onRename = { },
                     context = context
                 )
             }
         }
 
-        // DOCK
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
