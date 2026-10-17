@@ -25,7 +25,7 @@ class HomeActivity : AppCompatActivity() {
 
     private lateinit var homeRecyclerView: RecyclerView
     private lateinit var emptyMessage: TextView
-    private lateinit var drawerIcon: ImageView
+    private lateinit var dockDrawerButton: FrameLayout
     private lateinit var dockLayout: View
     private lateinit var adapter: AppAdapter
     private lateinit var dockSlots: List<FrameLayout>
@@ -53,7 +53,7 @@ class HomeActivity : AppCompatActivity() {
 
         homeRecyclerView = findViewById(R.id.homeRecyclerView)
         emptyMessage = findViewById(R.id.emptyMessage)
-        drawerIcon = findViewById(R.id.drawerIcon)
+        dockDrawerButton = findViewById(R.id.dockDrawerButton)
         dockLayout = findViewById(R.id.dockLayout)
 
         dockSlots = listOf(
@@ -62,6 +62,9 @@ class HomeActivity : AppCompatActivity() {
             findViewById(R.id.dockSlot3),
             findViewById(R.id.dockSlot4)
         )
+
+        // Crea l'icona cassetto dinamicamente (come le app)
+        setupDrawerButton()
 
         homeRecyclerView.layoutManager = GridLayoutManager(this, 4)
         adapter = AppAdapter(
@@ -88,10 +91,6 @@ class HomeActivity : AppCompatActivity() {
             closeDrawer()
         }
 
-        drawerIcon.setOnClickListener {
-            openDrawer()
-        }
-
         if (FirstRunSetup.isFirstRun(this)) {
             lifecycleScope.launch {
                 FirstRunSetup.populateHome(this@HomeActivity)
@@ -109,6 +108,23 @@ class HomeActivity : AppCompatActivity() {
             IntentFilter("com.simplylauncher.RELOAD"),
             RECEIVER_NOT_EXPORTED
         )
+    }
+
+    private fun setupDrawerButton() {
+        dockDrawerButton.removeAllViews()
+
+        val imageView = ImageView(this).apply {
+            setImageResource(R.drawable.ic_drawer)
+            val size = (62 * resources.displayMetrics.density).toInt()
+            layoutParams = FrameLayout.LayoutParams(size, size).apply {
+                gravity = Gravity.CENTER
+            }
+        }
+        dockDrawerButton.addView(imageView)
+
+        dockDrawerButton.setOnClickListener {
+            openDrawer()
+        }
     }
 
     override fun onResume() {
@@ -214,7 +230,7 @@ class HomeActivity : AppCompatActivity() {
                 if (app != null) {
                     val imageView = ImageView(this@HomeActivity).apply {
                         setImageDrawable(app.icon)
-                        val size = (60 * resources.displayMetrics.density).toInt()
+                        val size = (65 * resources.displayMetrics.density).toInt()
                         layoutParams = FrameLayout.LayoutParams(size, size).apply {
                             gravity = Gravity.CENTER
                         }
