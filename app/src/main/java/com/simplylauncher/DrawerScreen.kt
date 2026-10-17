@@ -63,6 +63,55 @@ fun DrawerScreen(
                 .offset(y = (-20).dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color(color).copy(alpha = alpha))
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+
+                        // Calcola quale icona c'è sotto il dito
+                        val col = (down.position.x / (cellWidth.value * density)).toInt()
+                        val row = (down.position.y / (cellHeight.value * density)).toInt()
+                        val index = row * cols + col
+
+                        if (index in apps.indices) {
+                            val app = apps[index]
+
+                            val longPress = awaitLongPressOrCancellation(down.id)
+
+                            if (longPress != null) {
+                                // Long press: mostra il menu
+                                menuApp = app
+
+                                // Monitora il movimento
+                                var isDrag = false
+                                var dragPos = longPress.position
+
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                    if (!change.pressed) break
+
+                                    val distance = (change.position - down.position).getDistance()
+                                    if (distance > 80f) {
+                                        isDrag = true
+                                        dragPos = change.position
+                                        change.consume()
+                                        break
+                                    }
+                                }
+
+                                if (isDrag) {
+                                    menuApp = null
+                                    onStartDrag(app, dragPos)
+                                    onClose()
+                                }
+                            } else {
+                                // Tap: apri app
+                                AppRepository.launchApp(context, app.packageName)
+                                onClose()
+                            }
+                        }
+                    }
+                }
         ) {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(cols),
@@ -74,47 +123,7 @@ fun DrawerScreen(
             ) {
                 items(apps, key = { it.packageName }) { app ->
                     Box(
-                        modifier = Modifier
-                            .size(cellWidth, cellHeight)
-                            .pointerInput(app.packageName) {
-                                awaitEachGesture {
-                                    val down = awaitFirstDown(requireUnconsumed = false)
-                                    val longPress = awaitLongPressOrCancellation(down.id)
-
-                                    if (longPress != null) {
-                                        // Long press: mostra il menu
-                                        menuApp = app
-
-                                        // Monitora il movimento
-                                        var isDrag = false
-                                        var dragPos = longPress.position
-
-                                        while (true) {
-                                            val event = awaitPointerEvent()
-                                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                                            if (!change.pressed) break
-
-                                            val distance = (change.position - down.position).getDistance()
-                                            if (distance > 40f) {
-                                                isDrag = true
-                                                dragPos = change.position
-                                                change.consume()
-                                                break
-                                            }
-                                        }
-
-                                        if (isDrag) {
-                                            menuApp = null
-                                            onStartDrag(app, dragPos)
-                                            onClose()
-                                        }
-                                    } else {
-                                        // Tap: apri app
-                                        AppRepository.launchApp(context, app.packageName)
-                                        onClose()
-                                    }
-                                }
-                            }
+                        modifier = Modifier.size(cellWidth, cellHeight)
                     ) {
                         AppIcon(
                             app = app,
@@ -145,7 +154,7 @@ fun DrawerScreen(
                             Prefs.setDockItems(context, dockItems - app.packageName)
                         }
                     },
-                    onRename = { },
+                    onRename = { /* TODO */ },
                     context = context
                 )
             }
