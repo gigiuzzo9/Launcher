@@ -16,6 +16,7 @@ fun AppContextMenu(
     isInHome: Boolean,
     isInDock: Boolean,
     onRemove: () -> Unit,
+    onRename: () -> Unit,
     context: Context
 ) {
     DropdownMenu(
@@ -30,6 +31,14 @@ fun AppContextMenu(
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 context.startActivity(i)
+                onDismiss()
+            }
+        )
+
+        DropdownMenuItem(
+            text = { Text("Rinomina") },
+            onClick = {
+                onRename()
                 onDismiss()
             }
         )
