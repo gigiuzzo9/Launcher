@@ -63,7 +63,6 @@ class HomeActivity : AppCompatActivity() {
             findViewById(R.id.dockSlot4)
         )
 
-        // Crea l'icona cassetto dinamicamente (come le app)
         setupDrawerButton()
 
         homeRecyclerView.layoutManager = GridLayoutManager(this, 4)
@@ -115,7 +114,7 @@ class HomeActivity : AppCompatActivity() {
 
         val imageView = ImageView(this).apply {
             setImageResource(R.drawable.ic_drawer)
-            val size = (62 * resources.displayMetrics.density).toInt()
+            val size = (65 * resources.displayMetrics.density).toInt()
             layoutParams = FrameLayout.LayoutParams(size, size).apply {
                 gravity = Gravity.CENTER
             }
