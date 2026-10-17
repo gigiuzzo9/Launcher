@@ -3,7 +3,6 @@ package com.simplylauncher
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.provider.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
@@ -26,7 +25,7 @@ fun AppContextMenu(
         expanded = expanded,
         onDismissRequest = onDismiss
     ) {
-        // Disinstalla (sempre presente)
+        // Disinstalla
         DropdownMenuItem(
             text = { Text("Disinstalla") },
             onClick = {
@@ -39,7 +38,7 @@ fun AppContextMenu(
             }
         )
 
-        // Rinomina (solo nel cassetto — quando non è nella home)
+        // Rinomina (solo se non è nella home)
         if (!isInHome) {
             DropdownMenuItem(
                 text = { Text("Rinomina") },
@@ -61,20 +60,12 @@ fun AppContextMenu(
             )
         }
 
-        // Dock
+        // Rimuovi dal dock (solo se è nel dock) — "Aggiungi al dock" rimosso
         if (isInDock) {
             DropdownMenuItem(
                 text = { Text("Rimuovi dal dock") },
                 onClick = {
                     onRemoveFromDock()
-                    onDismiss()
-                }
-            )
-        } else {
-            DropdownMenuItem(
-                text = { Text("Aggiungi al dock") },
-                onClick = {
-                    onAddToDock()
                     onDismiss()
                 }
             )
