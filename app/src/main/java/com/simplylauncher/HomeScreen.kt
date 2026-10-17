@@ -167,17 +167,17 @@ fun HomeScreen(
                 .padding(bottom = 53.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            DockSlot(dockApps.getOrNull(0), Modifier.weight(1f))
-            DockSlot(dockApps.getOrNull(1), Modifier.weight(1f))
+            DockSlot(dockApps.getOrNull(0), Modifier.weight(1f)) { menuApp = dockApps.getOrNull(0) }
+            DockSlot(dockApps.getOrNull(1), Modifier.weight(1f)) { menuApp = dockApps.getOrNull(1) }
             DockDrawerButton(onOpenDrawer, Modifier.weight(1f))
-            DockSlot(dockApps.getOrNull(2), Modifier.weight(1f))
-            DockSlot(dockApps.getOrNull(3), Modifier.weight(1f))
+            DockSlot(dockApps.getOrNull(2), Modifier.weight(1f)) { menuApp = dockApps.getOrNull(2) }
+            DockSlot(dockApps.getOrNull(3), Modifier.weight(1f)) { menuApp = dockApps.getOrNull(3) }
         }
     }
 }
 
 @Composable
-private fun DockSlot(app: AppInfo?, modifier: Modifier = Modifier) {
+private fun DockSlot(app: AppInfo?, modifier: Modifier = Modifier, onLongPress: () -> Unit) {
     val context = LocalContext.current
     Box(
         modifier = modifier.height(80.dp),
@@ -189,7 +189,8 @@ private fun DockSlot(app: AppInfo?, modifier: Modifier = Modifier) {
                     .size(70.dp)
                     .pointerInput(app.packageName) {
                         detectTapGestures(
-                            onTap = { AppRepository.launchApp(context, app.packageName) }
+                            onTap = { AppRepository.launchApp(context, app.packageName) },
+                            onLongPress = { onLongPress() }
                         )
                     },
                 contentAlignment = Alignment.Center
