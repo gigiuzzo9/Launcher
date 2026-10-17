@@ -21,7 +21,6 @@
         android:theme="@style/Theme.Launcher"
         tools:targetApi="34">
 
-        <!-- Entry point: icona app -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -32,7 +31,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Launcher (home) — esclusa dalle app recenti -->
         <activity
             android:name=".HomeActivity"
             android:exported="true"
@@ -49,20 +47,11 @@
             </intent-filter>
         </activity>
 
-        <!-- Cassetto delle app -->
-        <activity
-            android:name=".DrawerActivity"
-            android:exported="false"
-            android:screenOrientation="portrait"
-            android:theme="@style/Theme.Launcher.Drawer" />
-
-        <!-- Impostazioni -->
         <activity
             android:name=".SettingsActivity"
             android:exported="false"
             android:screenOrientation="portrait" />
 
-        <!-- Broadcast receiver per installazioni/disinstallazioni -->
         <receiver
             android:name=".PackageChangeReceiver"
             android:exported="false">
