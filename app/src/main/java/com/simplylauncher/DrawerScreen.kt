@@ -1,9 +1,8 @@
 package com.simplylauncher
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -77,52 +76,40 @@ fun DrawerScreen(
                         modifier = Modifier
                             .size(cellWidth, cellHeight)
                             .pointerInput(app.packageName) {
-                                awaitEachGesture {
-                                    val down = awaitFirstDown(requireUnconsumed = false)
-                                    val longPress = awaitLongPressOrCancellation(down.id)
-
-                                    if (longPress != null) {
-                                        // Long press rilevato: aspetta se muove o resta fermo
-                                        var isDrag = false
-                                        var dragPos = longPress.position
-
-                                        // Aspetta un attimo per capire se muove
-                                        val moveEvent = withTimeoutOrNull(200L) {
-                                            awaitPointerEvent()
-                                        }
-
-                                        if (moveEvent != null) {
-                                            val change = moveEvent.changes.firstOrNull { it.id == down.id }
-                                            if (change != null && (change.position - down.position).getDistance() > 10f) {
-                                                isDrag = true
-                                                dragPos = change.position
-                                                change.consume()
-                                            }
-                                        }
-
-                                        if (isDrag) {
-                                            // DRAG: chiudi cassetto, inizia drag
-                                            menuApp = null
-                                            onStartDrag(app, dragPos)
-                                            onClose()
-                                        } else {
-                                            // MENU: mostra menu contestuale
-                                            menuApp = app
-                                        }
-                                    } else {
-                                        // TAP normale: apri app
+                                detectTapGestures(
+                                    onTap = {
                                         AppRepository.launchApp(context, app.packageName)
                                         onClose()
+                                    },
+                                    onLongPress = {
+                                        menuApp = app
                                     }
-                                }
+                                )
+                            }
+                            .pointerInput(app.packageName) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = { offset ->
+                                        menuApp = null
+                                        onStartDrag(app, offset)
+                                        onClose()
+                                    },
+                                    onDrag = { change, _ ->
+                                        change.consume()
+                                        DragDropState.updatePosition(change.position)
+                                    },
+                                    onDragEnd = {
+                                        DragDropState.endDrag()
+                                    },
+                                    onDragCancel = {
+                                        DragDropState.cancelDrag()
+                                    }
+                                )
                             }
                     ) {
                         AppIcon(
                             app = app,
                             cellWidth = cellWidth,
                             cellHeight = cellHeight,
-                            onClick = {},
-                            onLongPress = {},
                             textColor = textColor
                         )
                     }
