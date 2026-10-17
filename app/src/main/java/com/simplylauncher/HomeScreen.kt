@@ -49,28 +49,6 @@ fun LauncherRoot(
                 onStartDrag = onStartDrag
             )
         }
-
-        // Icona che segue il dito durante il drag
-        if (DragDropState.isDragging && DragDropState.draggedApp != null) {
-            val app = DragDropState.draggedApp!!
-            val bmp = remember(app.packageName) {
-                AppIconCache.get(app.packageName, app)
-            }
-            Box(
-                modifier = Modifier
-                    .offset(
-                        x = (DragDropState.dragPosition.x / 3).dp,
-                        y = (DragDropState.dragPosition.y / 3).dp
-                    )
-                    .size(80.dp)
-            ) {
-                Image(
-                    bitmap = bmp,
-                    contentDescription = app.label,
-                    modifier = Modifier.size(64.dp)
-                )
-            }
-        }
     }
 }
 
@@ -102,17 +80,6 @@ fun HomeScreen(
     val cellHeight = (screenHeight / rows) * 0.8f
 
     var menuApp by remember { mutableStateOf<AppInfo?>(null) }
-
-    // Callback per il drop: quando si rilascia un'icona, la aggiunge alla home
-    LaunchedEffect(Unit) {
-        DragDropState.onDrop = { app, _ ->
-            scope.launch {
-                if (!homeItems.contains(app.packageName)) {
-                    Prefs.setHomeItems(context, homeItems + app.packageName)
-                }
-            }
-        }
-    }
 
     Box(Modifier.fillMaxSize()) {
 
@@ -157,8 +124,6 @@ fun HomeScreen(
                             app = app,
                             cellWidth = cellWidth,
                             cellHeight = cellHeight,
-                            onClick = {},
-                            onLongPress = {},
                             textColor = Color.White
                         )
                     }
