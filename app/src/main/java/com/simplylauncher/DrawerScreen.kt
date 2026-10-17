@@ -82,10 +82,10 @@ fun DrawerScreen(
                                     val longPress = awaitLongPressOrCancellation(down.id)
 
                                     if (longPress != null) {
-                                        // Long press: mostra il menu
+                                        // Long press: mostra il menu SUBITO
                                         menuApp = app
 
-                                        // Monitora il dito: se muove di > 40px, chiudi e parti col drag
+                                        // Poi aspetta il movimento per capire se è drag
                                         var isDrag = false
                                         var dragPos = longPress.position
 
@@ -109,7 +109,7 @@ fun DrawerScreen(
                                             onClose()
                                         }
                                     } else {
-                                        // Tap normale
+                                        // Tap normale: apri app
                                         AppRepository.launchApp(context, app.packageName)
                                         onClose()
                                     }
