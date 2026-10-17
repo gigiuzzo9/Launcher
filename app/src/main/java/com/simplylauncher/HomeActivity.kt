@@ -26,10 +26,10 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var homeRecyclerView: RecyclerView
     private lateinit var emptyMessage: TextView
     private lateinit var drawerIcon: ImageView
+    private lateinit var dockLayout: View
     private lateinit var adapter: AppAdapter
     private lateinit var dockSlots: List<FrameLayout>
 
-    // Overlay cassetto
     private lateinit var drawerOverlay: FrameLayout
     private lateinit var drawerContainer: CardView
     private lateinit var drawerRecyclerView: RecyclerView
@@ -54,6 +54,7 @@ class HomeActivity : AppCompatActivity() {
         homeRecyclerView = findViewById(R.id.homeRecyclerView)
         emptyMessage = findViewById(R.id.emptyMessage)
         drawerIcon = findViewById(R.id.drawerIcon)
+        dockLayout = findViewById(R.id.dockLayout)
 
         dockSlots = listOf(
             findViewById(R.id.dockSlot1),
@@ -62,7 +63,6 @@ class HomeActivity : AppCompatActivity() {
             findViewById(R.id.dockSlot4)
         )
 
-        // Setup home
         homeRecyclerView.layoutManager = GridLayoutManager(this, 4)
         adapter = AppAdapter(
             onClick = { app -> AppRepository.launchApp(this, app.packageName) },
@@ -70,7 +70,6 @@ class HomeActivity : AppCompatActivity() {
         )
         homeRecyclerView.adapter = adapter
 
-        // Setup overlay cassetto
         drawerOverlay = findViewById(R.id.drawerOverlay)
         drawerContainer = findViewById(R.id.drawerContainer)
         drawerRecyclerView = findViewById(R.id.drawerRecyclerView)
@@ -85,12 +84,10 @@ class HomeActivity : AppCompatActivity() {
         )
         drawerRecyclerView.adapter = drawerAdapter
 
-        // Click sullo sfondo scuro → chiude il cassetto
         drawerOverlay.setOnClickListener {
             closeDrawer()
         }
 
-        // Pulsante cassetto
         drawerIcon.setOnClickListener {
             openDrawer()
         }
@@ -133,11 +130,14 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    // ---- Cassetto ----
-
     private fun openDrawer() {
         if (drawerOpen) return
         drawerOpen = true
+
+        // Nasconde la home
+        homeRecyclerView.visibility = View.INVISIBLE
+        dockLayout.visibility = View.INVISIBLE
+        emptyMessage.visibility = View.INVISIBLE
 
         applyDrawerBackground()
         drawerOverlay.visibility = View.VISIBLE
@@ -151,6 +151,12 @@ class HomeActivity : AppCompatActivity() {
         drawerOpen = false
 
         drawerOverlay.visibility = View.GONE
+
+        // Mostra la home
+        homeRecyclerView.visibility = View.VISIBLE
+        dockLayout.visibility = View.VISIBLE
+
+        loadHomeApps()
     }
 
     private fun applyDrawerBackground() {
@@ -166,8 +172,6 @@ class HomeActivity : AppCompatActivity() {
             drawerContainer.setCardBackgroundColor(Color.argb(a, r, g, b))
         }
     }
-
-    // ---- Caricamento dati ----
 
     private fun loadHomeApps() {
         lifecycleScope.launch {
