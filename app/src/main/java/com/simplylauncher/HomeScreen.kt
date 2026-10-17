@@ -143,17 +143,12 @@ fun HomeScreen(
                     app = app,
                     isInHome = homeItems.contains(app.packageName),
                     isInDock = dockItems.contains(app.packageName),
-                    onRemoveFromHome = {
+                    onRemove = {
                         scope.launch {
                             Prefs.setHomeItems(context, homeItems - app.packageName)
-                        }
-                    },
-                    onRemoveFromDock = {
-                        scope.launch {
                             Prefs.setDockItems(context, dockItems - app.packageName)
                         }
                     },
-                    onRename = { },
                     context = context
                 )
             }
