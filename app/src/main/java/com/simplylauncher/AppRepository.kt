@@ -3,6 +3,7 @@ package com.simplylauncher
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import kotlinx.coroutines.flow.first
 
 object AppRepository {
 
@@ -17,6 +18,26 @@ object AppRepository {
             .map { appInfo ->
                 AppInfo(
                     label = pm.getApplicationLabel(appInfo).toString(),
+                    packageName = appInfo.packageName,
+                    icon = pm.getApplicationIcon(appInfo)
+                )
+            }
+            .sortedBy { it.label.lowercase() }
+    }
+
+    suspend fun loadInstalledAppsWithCustomLabels(context: Context): List<AppInfo> {
+        val pm = context.packageManager
+        val customLabels = Prefs.customLabelsFlow(context).first()
+        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val resolved = pm.queryIntentActivities(intent, 0)
+
+        return resolved
+            .map { it.activityInfo.applicationInfo }
+            .distinctBy { it.packageName }
+            .map { appInfo ->
+                AppInfo(
+                    label = customLabels[appInfo.packageName]
+                        ?: pm.getApplicationLabel(appInfo).toString(),
                     packageName = appInfo.packageName,
                     icon = pm.getApplicationIcon(appInfo)
                 )
