@@ -7,6 +7,7 @@
     <string name="settings_transparency_default">Trasparenza: 90%</string>
     <string name="settings_columns">Colonne</string>
     <string name="settings_rows">Righe</string>
+    <string name="settings_background_color">Colore sfondo</string>
 
     <!-- Menu contestuale -->
     <string name="menu_uninstall">Disinstalla</string>
