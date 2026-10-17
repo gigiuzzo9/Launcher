@@ -82,10 +82,10 @@ fun DrawerScreen(
                                     val longPress = awaitLongPressOrCancellation(down.id)
 
                                     if (longPress != null) {
-                                        // Long press: mostra il menu (cassetto resta aperto)
+                                        // Long press: mostra il menu
                                         menuApp = app
 
-                                        // Poi monitora il movimento
+                                        // Monitora il movimento
                                         var isDrag = false
                                         var dragPos = longPress.position
 
