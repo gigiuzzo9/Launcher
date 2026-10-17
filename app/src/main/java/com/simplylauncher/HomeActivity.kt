@@ -48,8 +48,9 @@ class HomeActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
 
-        // Barra superiore nera, barra inferiore semitrasparente
+        // Barra superiore NERA (come Compose)
         window.statusBarColor = Color.BLACK
+        // Barra inferiore semitrasparente
         window.navigationBarColor = Color.parseColor("#80000000")
 
         homeRecyclerView = findViewById(R.id.homeRecyclerView)
@@ -114,7 +115,7 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Se il cassetto è aperto e l'app torna in primo piano (tasto Home), chiudilo
+        // Tasto Home fisico: se il cassetto è aperto, chiudilo
         if (drawerOpen) {
             closeDrawer()
         }
