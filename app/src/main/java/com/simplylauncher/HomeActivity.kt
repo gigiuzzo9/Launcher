@@ -6,7 +6,9 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
 import android.provider.Settings
+import android.view.Gravity
 import android.view.View
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -22,7 +24,7 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var emptyMessage: TextView
     private lateinit var drawerIcon: ImageView
     private lateinit var adapter: AppAdapter
-    private lateinit var dockSlots: List<View>
+    private lateinit var dockSlots: List<FrameLayout>
 
     private val reloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -46,7 +48,6 @@ class HomeActivity : AppCompatActivity() {
             findViewById(R.id.dockSlot4)
         )
 
-        // Setup RecyclerView home
         homeRecyclerView.layoutManager = GridLayoutManager(this, 4)
         adapter = AppAdapter(
             onClick = { app -> AppRepository.launchApp(this, app.packageName) },
@@ -54,12 +55,10 @@ class HomeActivity : AppCompatActivity() {
         )
         homeRecyclerView.adapter = adapter
 
-        // Click sul pulsante cassetto
         drawerIcon.setOnClickListener {
             startActivity(Intent(this, DrawerActivity::class.java))
         }
 
-        // Prima installazione
         if (FirstRunSetup.isFirstRun(this)) {
             lifecycleScope.launch {
                 FirstRunSetup.populateHome(this@HomeActivity)
@@ -114,22 +113,23 @@ class HomeActivity : AppCompatActivity() {
             val dockApps = dockItems.mapNotNull { pkg -> allApps.find { it.packageName == pkg } }
 
             dockSlots.forEachIndexed { index, slot ->
-                val frame = slot as android.widget.FrameLayout
-                frame.removeAllViews()
+                slot.removeAllViews()
 
                 val app = dockApps.getOrNull(index)
                 if (app != null) {
                     val imageView = ImageView(this@HomeActivity).apply {
                         setImageDrawable(app.icon)
-                        layoutParams = android.widget.FrameLayout.LayoutParams(60, 60)
-                        (layoutParams as android.widget.FrameLayout.LayoutParams).gravity = android.view.Gravity.CENTER
+                        val size = (65 * resources.displayMetrics.density).toInt()
+                        layoutParams = FrameLayout.LayoutParams(size, size).apply {
+                            gravity = Gravity.CENTER
+                        }
                     }
-                    frame.addView(imageView)
+                    slot.addView(imageView)
 
-                    frame.setOnClickListener {
+                    slot.setOnClickListener {
                         AppRepository.launchApp(this@HomeActivity, app.packageName)
                     }
-                    frame.setOnLongClickListener { view ->
+                    slot.setOnLongClickListener { view ->
                         showContextMenu(app, view)
                         true
                     }
