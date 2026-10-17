@@ -10,12 +10,15 @@
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowShowWallpaper">true</item>
         <item name="android:windowDisablePreview">true</item>
+        <item name="android:navigationBarColor">#80000000</item>
     </style>
 
     <style name="Theme.Launcher.Drawer" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:navigationBarColor">#80000000</item>
+        <item name="android:windowEnterAnimation">@android:anim/slide_in_left</item>
     </style>
 
 </resources>
