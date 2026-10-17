@@ -15,9 +15,7 @@ fun AppContextMenu(
     app: AppInfo,
     isInHome: Boolean,
     isInDock: Boolean,
-    onRemoveFromHome: () -> Unit,
-    onRemoveFromDock: () -> Unit,
-    onRename: () -> Unit,
+    onRemove: () -> Unit,
     context: Context
 ) {
     DropdownMenu(
@@ -36,31 +34,11 @@ fun AppContextMenu(
             }
         )
 
-        if (!isInHome) {
+        if (isInHome || isInDock) {
             DropdownMenuItem(
-                text = { Text("Rinomina") },
+                text = { Text("Rimuovi") },
                 onClick = {
-                    onRename()
-                    onDismiss()
-                }
-            )
-        }
-
-        if (isInHome) {
-            DropdownMenuItem(
-                text = { Text("Rimuovi dalla home") },
-                onClick = {
-                    onRemoveFromHome()
-                    onDismiss()
-                }
-            )
-        }
-
-        if (isInDock) {
-            DropdownMenuItem(
-                text = { Text("Rimuovi dal dock") },
-                onClick = {
-                    onRemoveFromDock()
+                    onRemove()
                     onDismiss()
                 }
             )
