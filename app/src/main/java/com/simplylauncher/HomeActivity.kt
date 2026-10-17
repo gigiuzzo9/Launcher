@@ -9,10 +9,12 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
 import android.view.View
+import android.view.animation.AnimationUtils
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.cardview.widget.CardView
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -27,10 +29,18 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var adapter: AppAdapter
     private lateinit var dockSlots: List<FrameLayout>
 
+    // Overlay cassetto
+    private lateinit var drawerOverlay: FrameLayout
+    private lateinit var drawerContainer: CardView
+    private lateinit var drawerRecyclerView: RecyclerView
+    private lateinit var drawerAdapter: AppAdapter
+    private var drawerOpen = false
+
     private val reloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             loadHomeApps()
             loadDockApps()
+            loadDrawerApps()
         }
     }
 
@@ -52,6 +62,7 @@ class HomeActivity : AppCompatActivity() {
             findViewById(R.id.dockSlot4)
         )
 
+        // Setup home
         homeRecyclerView.layoutManager = GridLayoutManager(this, 4)
         adapter = AppAdapter(
             onClick = { app -> AppRepository.launchApp(this, app.packageName) },
@@ -59,9 +70,29 @@ class HomeActivity : AppCompatActivity() {
         )
         homeRecyclerView.adapter = adapter
 
+        // Setup overlay cassetto
+        drawerOverlay = findViewById(R.id.drawerOverlay)
+        drawerContainer = findViewById(R.id.drawerContainer)
+        drawerRecyclerView = findViewById(R.id.drawerRecyclerView)
+
+        drawerRecyclerView.layoutManager = GridLayoutManager(this, 4)
+        drawerAdapter = AppAdapter(
+            onClick = { app ->
+                AppRepository.launchApp(this, app.packageName)
+                closeDrawer()
+            },
+            onLongPress = { app, view -> showContextMenu(app, view) }
+        )
+        drawerRecyclerView.adapter = drawerAdapter
+
+        // Click sullo sfondo scuro → chiude il cassetto
+        drawerOverlay.setOnClickListener {
+            closeDrawer()
+        }
+
+        // Pulsante cassetto
         drawerIcon.setOnClickListener {
-            startActivity(Intent(this, DrawerActivity::class.java))
-            overridePendingTransition(R.anim.slide_in_up, 0)
+            openDrawer()
         }
 
         if (FirstRunSetup.isFirstRun(this)) {
@@ -70,6 +101,7 @@ class HomeActivity : AppCompatActivity() {
                 FirstRunSetup.markDone(this@HomeActivity)
                 loadHomeApps()
                 loadDockApps()
+                loadDrawerApps()
             }
         }
 
@@ -86,12 +118,56 @@ class HomeActivity : AppCompatActivity() {
         super.onResume()
         loadHomeApps()
         loadDockApps()
+        loadDrawerApps()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         try { unregisterReceiver(reloadReceiver) } catch (_: Exception) {}
     }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (drawerOpen) {
+            closeDrawer()
+        }
+    }
+
+    // ---- Cassetto ----
+
+    private fun openDrawer() {
+        if (drawerOpen) return
+        drawerOpen = true
+
+        applyDrawerBackground()
+        drawerOverlay.visibility = View.VISIBLE
+        drawerOverlay.startAnimation(
+            AnimationUtils.loadAnimation(this, R.anim.slide_in_up)
+        )
+    }
+
+    private fun closeDrawer() {
+        if (!drawerOpen) return
+        drawerOpen = false
+
+        drawerOverlay.visibility = View.GONE
+    }
+
+    private fun applyDrawerBackground() {
+        lifecycleScope.launch {
+            val color = Prefs.colorFlow(this@HomeActivity).first()
+            val alpha = Prefs.alphaFlow(this@HomeActivity).first()
+
+            val r = Color.red(color)
+            val g = Color.green(color)
+            val b = Color.blue(color)
+            val a = (alpha * 255).toInt()
+
+            drawerContainer.setCardBackgroundColor(Color.argb(a, r, g, b))
+        }
+    }
+
+    // ---- Caricamento dati ----
 
     private fun loadHomeApps() {
         lifecycleScope.launch {
@@ -108,6 +184,13 @@ class HomeActivity : AppCompatActivity() {
                 emptyMessage.visibility = TextView.GONE
                 homeRecyclerView.visibility = RecyclerView.VISIBLE
             }
+        }
+    }
+
+    private fun loadDrawerApps() {
+        lifecycleScope.launch {
+            val apps = AppRepository.loadInstalledAppsWithCustomLabels(this@HomeActivity)
+            drawerAdapter.submitList(apps)
         }
     }
 
@@ -160,12 +243,14 @@ class HomeActivity : AppCompatActivity() {
                         Prefs.setDockItems(this@HomeActivity, dockItems - app.packageName)
                         loadHomeApps()
                         loadDockApps()
+                        loadDrawerApps()
                     }
                 },
                 onRename = {
                     RenameDialog.show(this@HomeActivity, app) {
                         loadHomeApps()
                         loadDockApps()
+                        loadDrawerApps()
                     }
                 }
             )
