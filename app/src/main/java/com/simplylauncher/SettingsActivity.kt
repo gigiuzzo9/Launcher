@@ -1,6 +1,10 @@
 package com.simplylauncher
 
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.view.View
+import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -15,6 +19,15 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var transparencySeekBar: SeekBar
     private lateinit var columnsChipGroup: ChipGroup
     private lateinit var rowsChipGroup: ChipGroup
+    private lateinit var colorPalette: LinearLayout
+
+    private val paletteColors = listOf(
+        Color.WHITE,
+        Color.BLACK,
+        Color.rgb(30, 136, 229),
+        Color.rgb(67, 160, 71),
+        Color.rgb(229, 57, 53)
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -24,9 +37,45 @@ class SettingsActivity : AppCompatActivity() {
         transparencySeekBar = findViewById(R.id.transparencySeekBar)
         columnsChipGroup = findViewById(R.id.columnsChipGroup)
         rowsChipGroup = findViewById(R.id.rowsChipGroup)
+        colorPalette = findViewById(R.id.colorPalette)
 
+        setupPalette()
         loadCurrentSettings()
         setupListeners()
+    }
+
+    private fun setupPalette() {
+        val size = (44 * resources.displayMetrics.density).toInt()
+        val margin = (12 * resources.displayMetrics.density).toInt()
+
+        paletteColors.forEach { color ->
+            val view = View(this)
+            val params = LinearLayout.LayoutParams(size, size)
+            params.marginEnd = margin
+            view.layoutParams = params
+
+            val drawable = GradientDrawable()
+            drawable.shape = GradientDrawable.OVAL
+            drawable.setColor(color)
+            view.background = drawable
+
+            view.setOnClickListener {
+                lifecycleScope.launch {
+                    Prefs.setColor(this@SettingsActivity, color)
+                }
+                // Aggiorna il bordo di selezione
+                updateSelection(view)
+            }
+
+            colorPalette.addView(view)
+        }
+    }
+
+    private fun updateSelection(selected: View) {
+        for (i in 0 until colorPalette.childCount) {
+            val child = colorPalette.getChildAt(i)
+            child.alpha = if (child == selected) 1f else 0.7f
+        }
     }
 
     private fun loadCurrentSettings() {
