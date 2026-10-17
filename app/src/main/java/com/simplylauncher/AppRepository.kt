@@ -12,9 +12,9 @@ object AppRepository {
         val resolved = pm.queryIntentActivities(intent, 0)
 
         return resolved
-            .distinctBy { it.activityInfo.name }
-            .map { resolveInfo ->
-                val appInfo = resolveInfo.activityInfo.applicationInfo
+            .map { it.activityInfo.applicationInfo }
+            .distinctBy { it.packageName }
+            .map { appInfo ->
                 AppInfo(
                     label = pm.getApplicationLabel(appInfo).toString(),
                     packageName = appInfo.packageName,
