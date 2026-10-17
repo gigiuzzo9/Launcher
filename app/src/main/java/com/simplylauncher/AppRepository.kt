@@ -14,7 +14,6 @@ object AppRepository {
         return resolved
             .map { it.activityInfo.applicationInfo }
             .distinctBy { it.packageName }
-            .filter { it.packageName != context.packageName }
             .map { appInfo ->
                 AppInfo(
                     label = pm.getApplicationLabel(appInfo).toString(),
