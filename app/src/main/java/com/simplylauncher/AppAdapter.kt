@@ -11,7 +11,7 @@ import androidx.recyclerview.widget.RecyclerView
 
 class AppAdapter(
     private val onClick: (AppInfo) -> Unit,
-    private val onLongPress: (AppInfo) -> Unit
+    private val onLongPress: (AppInfo, View) -> Unit
 ) : ListAdapter<AppInfo, AppAdapter.AppViewHolder>(DiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AppViewHolder {
@@ -33,8 +33,8 @@ class AppAdapter(
             label.text = app.label
 
             itemView.setOnClickListener { onClick(app) }
-            itemView.setOnLongClickListener {
-                onLongPress(app)
+            itemView.setOnLongClickListener { view ->
+                onLongPress(app, view)
                 true
             }
         }
