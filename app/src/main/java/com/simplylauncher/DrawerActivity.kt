@@ -1,8 +1,11 @@
 package com.simplylauncher
 
+import android.graphics.Color
 import android.os.Bundle
 import android.view.View
+import android.widget.LinearLayout
 import androidx.appcompat.app.AppCompatActivity
+import androidx.cardview.widget.CardView
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -12,16 +15,18 @@ import kotlinx.coroutines.launch
 class DrawerActivity : AppCompatActivity() {
 
     private lateinit var drawerRecyclerView: RecyclerView
+    private lateinit var drawerContainer: CardView
     private lateinit var adapter: AppAdapter
-    private lateinit var currentApps: List<AppInfo>
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_drawer)
 
         drawerRecyclerView = findViewById(R.id.drawerRecyclerView)
+        drawerContainer = findViewById(R.id.drawerContainer)
 
-        // Setup RecyclerView
+        applyBackgroundColor()
+
         drawerRecyclerView.layoutManager = GridLayoutManager(this, 4)
         adapter = AppAdapter(
             onClick = { app ->
@@ -37,10 +42,23 @@ class DrawerActivity : AppCompatActivity() {
         loadDrawerApps()
     }
 
+    private fun applyBackgroundColor() {
+        lifecycleScope.launch {
+            val color = Prefs.colorFlow(this@DrawerActivity).first()
+            val alpha = Prefs.alphaFlow(this@DrawerActivity).first()
+
+            val r = Color.red(color)
+            val g = Color.green(color)
+            val b = Color.blue(color)
+            val a = (alpha * 255).toInt()
+
+            drawerContainer.setCardBackgroundColor(Color.argb(a, r, g, b))
+        }
+    }
+
     private fun loadDrawerApps() {
         lifecycleScope.launch {
             val apps = AppRepository.loadInstalledAppsWithCustomLabels(this@DrawerActivity)
-            currentApps = apps
             adapter.submitList(apps)
         }
     }
