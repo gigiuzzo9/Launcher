@@ -5,7 +5,6 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- Home: griglia + dock -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/homeRecyclerView"
         android:layout_width="0dp"
@@ -39,7 +38,7 @@
         android:gravity="center_vertical"
         android:paddingStart="8dp"
         android:paddingEnd="8dp"
-        android:layout_marginBottom="53dp"
+        android:layout_marginBottom="40dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
@@ -89,7 +88,6 @@
 
     </LinearLayout>
 
-    <!-- CASSETTO OVERLAY: copre tutto, nascosto di default -->
     <FrameLayout
         android:id="@+id/drawerOverlay"
         android:layout_width="0dp"
