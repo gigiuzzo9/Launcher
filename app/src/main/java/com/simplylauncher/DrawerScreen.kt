@@ -82,10 +82,10 @@ fun DrawerScreen(
                                     val longPress = awaitLongPressOrCancellation(down.id)
 
                                     if (longPress != null) {
-                                        // Long press: mostra il menu SUBITO
+                                        // Long press: mostra il menu (cassetto resta aperto)
                                         menuApp = app
 
-                                        // Poi aspetta il movimento per capire se è drag
+                                        // Poi monitora il movimento
                                         var isDrag = false
                                         var dragPos = longPress.position
 
@@ -109,7 +109,7 @@ fun DrawerScreen(
                                             onClose()
                                         }
                                     } else {
-                                        // Tap normale: apri app
+                                        // Tap: apri app
                                         AppRepository.launchApp(context, app.packageName)
                                         onClose()
                                     }
@@ -145,6 +145,7 @@ fun DrawerScreen(
                             Prefs.setDockItems(context, dockItems - app.packageName)
                         }
                     },
+                    onRename = { },
                     context = context
                 )
             }
