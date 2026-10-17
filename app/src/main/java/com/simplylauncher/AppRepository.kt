@@ -13,7 +13,7 @@ object AppRepository {
 
         return resolved
             .map { it.activityInfo.applicationInfo }
-            .distinctBy { it.packageName }
+            .distinctBy { it.activityInfo.name } 
             .filter { it.packageName != context.packageName }
             .map { appInfo ->
                 AppInfo(
