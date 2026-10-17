@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -30,6 +31,7 @@ fun DrawerScreen(
 ) {
     val context = LocalContext.current
     val config = LocalConfiguration.current
+    val density = LocalDensity.current.density
 
     val color by Prefs.colorFlow(context).collectAsState(initial = 0xFF000000.toInt())
     val alpha by Prefs.alphaFlow(context).collectAsState(initial = 0.9f)
