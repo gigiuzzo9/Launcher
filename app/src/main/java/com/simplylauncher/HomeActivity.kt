@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Color
 import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
@@ -37,6 +38,9 @@ class HomeActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_home)
 
+        window.statusBarColor = Color.parseColor("#80000000")
+        window.navigationBarColor = Color.parseColor("#80000000")
+
         homeRecyclerView = findViewById(R.id.homeRecyclerView)
         emptyMessage = findViewById(R.id.emptyMessage)
         drawerIcon = findViewById(R.id.drawerIcon)
@@ -57,6 +61,7 @@ class HomeActivity : AppCompatActivity() {
 
         drawerIcon.setOnClickListener {
             startActivity(Intent(this, DrawerActivity::class.java))
+            overridePendingTransition(R.anim.slide_in_up, 0)
         }
 
         if (FirstRunSetup.isFirstRun(this)) {
