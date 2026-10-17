@@ -148,13 +148,6 @@ fun HomeScreen(
                             Prefs.setHomeItems(context, homeItems - app.packageName)
                         }
                     },
-                    onAddToDock = {
-                        scope.launch {
-                            if (dockItems.size < 4) {
-                                Prefs.setDockItems(context, dockItems + app.packageName)
-                            }
-                        }
-                    },
                     onRemoveFromDock = {
                         scope.launch {
                             Prefs.setDockItems(context, dockItems - app.packageName)
