@@ -15,32 +15,18 @@ fun AppContextMenu(
     onDismiss: () -> Unit,
     app: AppInfo,
     isInHome: Boolean,
-    onAddToHome: () -> Unit,
+    isInDock: Boolean,
     onRemoveFromHome: () -> Unit,
+    onAddToDock: () -> Unit,
+    onRemoveFromDock: () -> Unit,
+    onRename: () -> Unit,
     context: Context
 ) {
     DropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismiss
     ) {
-        DropdownMenuItem(
-            text = { Text("Apri") },
-            onClick = {
-                AppRepository.launchApp(context, app.packageName)
-                onDismiss()
-            }
-        )
-        DropdownMenuItem(
-            text = { Text("Info app") },
-            onClick = {
-                val i = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                    data = Uri.parse("package:${app.packageName}")
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(i)
-                onDismiss()
-            }
-        )
+        // Disinstalla (sempre presente)
         DropdownMenuItem(
             text = { Text("Disinstalla") },
             onClick = {
@@ -52,6 +38,19 @@ fun AppContextMenu(
                 onDismiss()
             }
         )
+
+        // Rinomina (solo nel cassetto — quando non è nella home)
+        if (!isInHome) {
+            DropdownMenuItem(
+                text = { Text("Rinomina") },
+                onClick = {
+                    onRename()
+                    onDismiss()
+                }
+            )
+        }
+
+        // Rimuovi dalla home (solo se è nella home)
         if (isInHome) {
             DropdownMenuItem(
                 text = { Text("Rimuovi dalla home") },
@@ -60,11 +59,22 @@ fun AppContextMenu(
                     onDismiss()
                 }
             )
+        }
+
+        // Dock
+        if (isInDock) {
+            DropdownMenuItem(
+                text = { Text("Rimuovi dal dock") },
+                onClick = {
+                    onRemoveFromDock()
+                    onDismiss()
+                }
+            )
         } else {
             DropdownMenuItem(
-                text = { Text("Aggiungi alla home") },
+                text = { Text("Aggiungi al dock") },
                 onClick = {
-                    onAddToHome()
+                    onAddToDock()
                     onDismiss()
                 }
             )
