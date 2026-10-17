@@ -1,4 +1,4 @@
-package com.simplylauncher
+package com.simplylauncher 
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
