@@ -1,9 +1,8 @@
 package com.simplylauncher
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -49,6 +48,7 @@ fun DrawerScreen(
     val textColor = if (isDarkBackground) Color.White else Color.Black
 
     var menuApp by remember { mutableStateOf<AppInfo?>(null) }
+    var dragStarted by remember { mutableStateOf(false) }
 
     Box(
         Modifier
@@ -77,44 +77,38 @@ fun DrawerScreen(
                         modifier = Modifier
                             .size(cellWidth, cellHeight)
                             .pointerInput(app.packageName) {
-                                awaitEachGesture {
-                                    val down = awaitFirstDown(requireUnconsumed = false)
-                                    val longPress = awaitLongPressOrCancellation(down.id)
-
-                                    if (longPress != null) {
-                                        // Long press: mostra SUBITO il menu
-                                        menuApp = app
-
-                                        // Poi monitora il dito per vedere se muove
-                                        var isDrag = false
-                                        var dragPos = longPress.position
-
-                                        while (true) {
-                                            val event = awaitPointerEvent()
-                                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-
-                                            if (!change.pressed) break
-
-                                            if ((change.position - down.position).getDistance() > 15f) {
-                                                isDrag = true
-                                                dragPos = change.position
-                                                change.consume()
-                                                break
-                                            }
-                                        }
-
-                                        if (isDrag) {
-                                            // Muovi: chiudi menu e cassetto, parti con il drag
-                                            menuApp = null
-                                            onStartDrag(app, dragPos)
-                                            onClose()
-                                        }
-                                    } else {
-                                        // Tap normale: apri l'app
+                                detectTapGestures(
+                                    onTap = {
                                         AppRepository.launchApp(context, app.packageName)
                                         onClose()
+                                    },
+                                    onLongPress = {
+                                        menuApp = app
+                                        dragStarted = false
                                     }
-                                }
+                                )
+                            }
+                            .pointerInput(app.packageName) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = { offset ->
+                                        if (!dragStarted) {
+                                            dragStarted = true
+                                            menuApp = null
+                                            onStartDrag(app, offset)
+                                            onClose()
+                                        }
+                                    },
+                                    onDrag = { change, _ ->
+                                        change.consume()
+                                        DragDropState.updatePosition(change.position)
+                                    },
+                                    onDragEnd = {
+                                        DragDropState.endDrag()
+                                    },
+                                    onDragCancel = {
+                                        DragDropState.cancelDrag()
+                                    }
+                                )
                             }
                     ) {
                         AppIcon(
