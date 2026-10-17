@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.simplelauncher"
+    namespace = "com.simplylauncher"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.simplelauncher"
+        applicationId = "com.simplylauncher"
         minSdk = 29
         targetSdk = 34
         versionCode = 1
