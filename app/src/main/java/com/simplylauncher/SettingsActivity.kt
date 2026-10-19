@@ -3,6 +3,7 @@ package com.simplylauncher
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.SeekBar
@@ -29,6 +30,8 @@ class SettingsActivity : AppCompatActivity() {
         Color.rgb(229, 57, 53)
     )
 
+    private var selectedColor: Int = Color.BLACK
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
@@ -39,50 +42,19 @@ class SettingsActivity : AppCompatActivity() {
         rowsChipGroup = findViewById(R.id.rowsChipGroup)
         colorPalette = findViewById(R.id.colorPalette)
 
-        setupPalette()
         loadCurrentSettings()
         setupListeners()
     }
 
-    private fun setupPalette() {
-        val size = (44 * resources.displayMetrics.density).toInt()
-        val margin = (12 * resources.displayMetrics.density).toInt()
-
-        paletteColors.forEach { color ->
-            val view = View(this)
-            val params = LinearLayout.LayoutParams(size, size)
-            params.marginEnd = margin
-            view.layoutParams = params
-
-            val drawable = GradientDrawable()
-            drawable.shape = GradientDrawable.OVAL
-            drawable.setColor(color)
-            view.background = drawable
-
-            view.setOnClickListener {
-                lifecycleScope.launch {
-                    Prefs.setColor(this@SettingsActivity, color)
-                }
-                // Aggiorna il bordo di selezione
-                updateSelection(view)
-            }
-
-            colorPalette.addView(view)
-        }
-    }
-
-    private fun updateSelection(selected: View) {
-        for (i in 0 until colorPalette.childCount) {
-            val child = colorPalette.getChildAt(i)
-            child.alpha = if (child == selected) 1f else 0.7f
-        }
-    }
-
     private fun loadCurrentSettings() {
         lifecycleScope.launch {
+            val color = Prefs.colorFlow(this@SettingsActivity).first()
             val alpha = Prefs.alphaFlow(this@SettingsActivity).first()
             val cols = Prefs.colsFlow(this@SettingsActivity).first()
             val rows = Prefs.rowsFlow(this@SettingsActivity).first()
+
+            selectedColor = color
+            setupPalette()
 
             transparencySeekBar.progress = (alpha * 100).toInt()
             transparencyLabel.text = getString(R.string.settings_transparency, (alpha * 100).toInt())
@@ -97,6 +69,54 @@ class SettingsActivity : AppCompatActivity() {
                 6 -> rowsChipGroup.check(R.id.chipRow6)
                 7 -> rowsChipGroup.check(R.id.chipRow7)
             }
+        }
+    }
+
+    private fun setupPalette() {
+        colorPalette.removeAllViews()
+
+        val size = (44 * resources.displayMetrics.density).toInt()
+        val margin = (12 * resources.displayMetrics.density).toInt()
+
+        paletteColors.forEach { color ->
+            val container = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                layoutParams = LinearLayout.LayoutParams(size, size).apply {
+                    marginEnd = margin
+                }
+            }
+
+            val circle = View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(size, size)
+                val drawable = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(color)
+                }
+                background = drawable
+            }
+
+            val check = TextView(this).apply {
+                text = "✓"
+                textSize = 18f
+                gravity = Gravity.CENTER
+                setTextColor(if (color == Color.WHITE) Color.BLACK else Color.WHITE)
+                visibility = if (color == selectedColor) View.VISIBLE else View.GONE
+                layoutParams = LinearLayout.LayoutParams(size, size)
+            }
+
+            container.addView(circle)
+            container.addView(check)
+
+            container.setOnClickListener {
+                selectedColor = color
+                lifecycleScope.launch {
+                    Prefs.setColor(this@SettingsActivity, color)
+                }
+                setupPalette()
+            }
+
+            colorPalette.addView(container)
         }
     }
 
