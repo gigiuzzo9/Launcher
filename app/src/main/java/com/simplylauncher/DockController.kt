@@ -13,7 +13,6 @@ import kotlinx.coroutines.launch
 /**
  * Gestisce i 4 slot della dock.
  * Ogni slot è un target di drop indipendente.
- * Espone anche metodi pubblici usati da HomeActivity (drop sul container).
  */
 class DockController(
     private val activity: HomeActivity,
@@ -122,7 +121,7 @@ class DockController(
 
     /**
      * Pubblico: usato da HomeActivity quando il drop avviene sul container
-     * e non su uno slot specifico. Trova lo slot e ci droppa.
+     * e non su uno slot specifico.
      */
     suspend fun addToDockAtPublic(pkg: String, slotIndex: Int) {
         addToDockAt(pkg, slotIndex)
@@ -132,10 +131,15 @@ class DockController(
         val dockItems = Prefs.dockItemsFlow(activity).first().toMutableList()
         while (dockItems.size < 4) dockItems.add("")
 
-        // rimuovi pkg se già presente in un'altra slot
-        val existingIndex = dockItems.indexOf(pkg)
-        if (existingIndex != -1) {
-            dockItems[existingIndex] = ""
+        // rimuovi TUTTE le occorrenze del pkg dalla dock (evita duplicati)
+        dockItems.replaceAll { if (it == pkg) "" else it }
+
+        // rimuovi TUTTE le occorrenze dalla home
+        val homeSlots = Prefs.homeSlotsFlow(activity).first()
+        val filtered = homeSlots.filter { it.packageName != pkg }
+        if (filtered.size != homeSlots.size) {
+            Prefs.setHomeSlots(activity, filtered)
+            activity.reloadHomeGrid()
         }
 
         // metti pkg nella slot target
@@ -151,15 +155,6 @@ class DockController(
         }
 
         Prefs.setDockItems(activity, dockItems)
-
-        // rimuovi dalla home se presente
-        val homeSlots = Prefs.homeSlotsFlow(activity).first()
-        val filtered = homeSlots.filter { it.packageName != pkg }
-        if (filtered.size != homeSlots.size) {
-            Prefs.setHomeSlots(activity, filtered)
-            activity.reloadHomeGrid()
-        }
-
         refresh()
     }
 }
