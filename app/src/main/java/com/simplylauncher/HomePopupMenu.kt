@@ -10,7 +10,7 @@ import android.widget.PopupWindow
 import android.widget.TextView
 
 /**
- * Popup che appare cliccando un punto vuoto della home.
+ * Popup che appare con long-press su un punto vuoto della home.
  * Voci: "Aggiungi widget", "Aggiungi pagina", "Modifica sfondo",
  * e "Rimuovi pagina" (visibile solo se pageCount > 1).
  */
@@ -29,9 +29,9 @@ class HomePopupMenu(private val ctx: Context) {
 
         val container = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(24, 16, 24, 16)
+            setPadding(48, 24, 48, 24)
             val drawable = GradientDrawable().apply {
-                cornerRadius = 16f
+                cornerRadius = 24f
                 setColor(Color.parseColor("#EE000000"))
             }
             background = drawable
@@ -76,8 +76,8 @@ class HomePopupMenu(private val ctx: Context) {
         return TextView(ctx).apply {
             this.text = text
             setTextColor(Color.WHITE)
-            textSize = 16f
-            setPadding(32, 24, 32, 24)
+            textSize = 20f
+            setPadding(64, 32, 64, 32)
             setOnClickListener { onClick() }
         }
     }
