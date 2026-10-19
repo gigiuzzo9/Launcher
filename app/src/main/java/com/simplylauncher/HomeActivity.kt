@@ -1,8 +1,8 @@
 package com.simplylauncher
 
+import android.content.BroadcastReceiver
 import android.content.ClipData
 import android.content.ClipDescription
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -12,7 +12,6 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.DragEvent
 import android.view.Gravity
-import android.view.MotionEvent
 import android.view.View
 import android.view.animation.AnimationUtils
 import android.widget.FrameLayout
@@ -20,8 +19,10 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
+import androidx.core.view.ViewCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -41,13 +42,7 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var drawerAdapter: AppAdapter
     private var drawerOpen = false
 
-    private lateinit var contextMenuView: AppContextMenuView
-    private var currentApp: AppInfo? = null
-    private var currentAnchor: View? = null
-
-    private var popupOpened = false
-    private var popupStartX = 0f
-    private var popupStartY = 0f
+    private lateinit var itemTouchHelper: ItemTouchHelper
 
     private val reloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -77,16 +72,19 @@ class HomeActivity : AppCompatActivity() {
         )
 
         setupDrawerButton()
-        setupContextMenu()
         applyGridSettings()
 
         adapter = AppAdapter(
             onClick = { app -> AppRepository.launchApp(this, app.packageName) },
-            onLongPress = { app, view, x, y -> showContextMenu(app, view) },
-            onMoveAfterLongPress = { app, view -> startDrag(app, view) }
+            onLongPress = { app, view -> /* Menu gestito da ItemTouchHelper */ },
+            onStartDrag = { holder -> startDrag(holder) }
         )
         homeRecyclerView.adapter = adapter
 
+        // ItemTouchHelper per il riordino nella home
+        setupItemTouchHelper()
+
+        // Drop target per la home
         homeRecyclerView.setOnDragListener { _, event -> handleDrop(event, isDock = false, isHomeGrid = true) }
 
         drawerOverlay = findViewById(R.id.drawerOverlay)
@@ -105,13 +103,15 @@ class HomeActivity : AppCompatActivity() {
                 AppRepository.launchApp(this, app.packageName)
                 closeDrawer()
             },
-            onLongPress = { app, view, x, y -> showContextMenu(app, view) },
-            onMoveAfterLongPress = { app, view -> startDrag(app, view) }
+            onLongPress = { app, view -> /* Menu gestito da ItemTouchHelper */ },
+            onStartDrag = { holder -> startDrag(holder) }
         )
         drawerRecyclerView.adapter = drawerAdapter
 
+        // Drop target per il cassetto
         drawerRecyclerView.setOnDragListener { _, event -> handleDrop(event, isDock = false, isHomeGrid = false) }
 
+        // Drop target per il dock
         dockLayout.setOnDragListener { _, event -> handleDrop(event, isDock = true, isHomeGrid = false) }
 
         drawerOverlay.setOnClickListener {
@@ -137,95 +137,54 @@ class HomeActivity : AppCompatActivity() {
         )
     }
 
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (popupOpened) {
-            when (ev.action) {
-                MotionEvent.ACTION_MOVE -> {
-                    val dx = Math.abs(ev.rawX - popupStartX)
-                    val dy = Math.abs(ev.rawY - popupStartY)
-                    if (dx > 80 || dy > 80) {  // soglia 80px
-                        popupOpened = false
-                        contextMenuView.dismiss()
-                        currentApp?.let { app ->
-                            currentAnchor?.let { anchor ->
-                                startDrag(app, anchor)
-                            }
-                        }
-                    }
-                }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    popupOpened = false
+    private fun setupItemTouchHelper() {
+        val callback = object : ItemTouchHelper.SimpleCallback(
+            ItemTouchHelper.UP or ItemTouchHelper.DOWN or
+            ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT,
+            0
+        ) {
+            override fun onMove(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                target: RecyclerView.ViewHolder
+            ): Boolean {
+                val fromPos = viewHolder.adapterPosition
+                val toPos = target.adapterPosition
+                val list = adapter.currentList.toMutableList()
+                val item = list.removeAt(fromPos)
+                list.add(toPos, item)
+                adapter.submitList(list)
+                return true
+            }
+
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {}
+
+            override fun onSelectedChanged(viewHolder: RecyclerView.ViewHolder?, actionState: Int) {
+                super.onSelectedChanged(viewHolder, actionState)
+                if (actionState == ItemTouchHelper.ACTION_STATE_DRAG) {
+                    viewHolder?.itemView?.alpha = 0.5f
                 }
             }
+
+            override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
+                super.clearView(recyclerView, viewHolder)
+                viewHolder.itemView.alpha = 1f
+                // Salva il nuovo ordine
+                saveHomeOrder()
+            }
         }
-        return super.dispatchTouchEvent(ev)
+        itemTouchHelper = ItemTouchHelper(callback)
+        itemTouchHelper.attachToRecyclerView(homeRecyclerView)
     }
 
-    private fun setupContextMenu() {
-        contextMenuView = AppContextMenuView(this)
-
-        contextMenuView.onUninstall = {
-            currentApp?.let { app ->
-                val intent = Intent(Intent.ACTION_DELETE).apply {
-                    data = android.net.Uri.parse("package:${app.packageName}")
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                startActivity(intent)
-            }
-        }
-
-        contextMenuView.onRename = {
-            currentApp?.let { app ->
-                RenameDialog.show(this, app) {
-                    loadHomeApps()
-                    loadDockApps()
-                    loadDrawerApps()
-                }
-            }
-        }
-
-        contextMenuView.onRemove = {
-            currentApp?.let { app ->
-                lifecycleScope.launch {
-                    val homeItems = Prefs.homeItemsFlow(this@HomeActivity).first()
-                    val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
-                    Prefs.setHomeItems(this@HomeActivity, homeItems - app.packageName)
-                    Prefs.setDockItems(this@HomeActivity, dockItems - app.packageName)
-                    loadHomeApps()
-                    loadDockApps()
-                    loadDrawerApps()
-                }
-            }
-        }
-
-        contextMenuView.onDismiss = {
-            if (!popupOpened) {
-                currentApp = null
-                currentAnchor = null
-            }
-        }
+    private fun startDrag(holder: RecyclerView.ViewHolder) {
+        itemTouchHelper.startDrag(holder)
     }
 
-    private fun showContextMenu(app: AppInfo, anchor: View) {
-        currentApp = app
-        currentAnchor = anchor
-        popupOpened = true
-        popupStartX = anchor.x
-        popupStartY = anchor.y
-        contextMenuView.show(anchor)
-    }
-
-    private fun startDrag(app: AppInfo, view: View) {
-        if (contextMenuView.isShowing()) {
-            contextMenuView.dismiss()
-        }
-
-        val clip = ClipData.newPlainText("package", app.packageName)
-        val shadow = View.DragShadowBuilder(view)
-        view.startDragAndDrop(clip, shadow, null, 0)
-
-        if (drawerOpen) {
-            drawerOverlay.animate().alpha(0.15f).setDuration(300).start()
+    private fun saveHomeOrder() {
+        lifecycleScope.launch {
+            val newOrder = adapter.currentList.map { it.packageName }
+            Prefs.setHomeItems(this@HomeActivity, newOrder)
         }
     }
 
@@ -446,10 +405,6 @@ class HomeActivity : AppCompatActivity() {
 
                     slot.setOnClickListener {
                         AppRepository.launchApp(this@HomeActivity, app.packageName)
-                    }
-                    slot.setOnLongClickListener { view ->
-                        showContextMenu(app, view)
-                        true
                     }
                 }
             }
