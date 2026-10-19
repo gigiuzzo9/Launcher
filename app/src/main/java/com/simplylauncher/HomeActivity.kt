@@ -1,13 +1,15 @@
 package com.simplylauncher
 
+import android.content.ClipData
+import android.content.ClipDescription
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
-import android.graphics.Rect
 import android.os.Bundle
 import android.provider.Settings
+import android.view.DragEvent
 import android.view.Gravity
 import android.view.View
 import android.view.animation.AnimationUtils
@@ -37,9 +39,10 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var drawerAdapter: AppAdapter
     private var drawerOpen = false
 
+    private var draggedPackage: String? = null
+
     private val reloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            applyGridSettings()
             loadHomeApps()
             loadDockApps()
             loadDrawerApps()
@@ -66,36 +69,38 @@ class HomeActivity : AppCompatActivity() {
         )
 
         setupDrawerButton()
-
-        // Applica le impostazioni della griglia
         applyGridSettings()
 
         adapter = AppAdapter(
             onClick = { app -> AppRepository.launchApp(this, app.packageName) },
-            onLongPress = { app, view -> showContextMenu(app, view) }
+            onLongPress = { app, view -> showContextMenu(app, view) },
+            onStartDrag = { app, view -> startDrag(app, view) }
         )
         homeRecyclerView.adapter = adapter
+
+        // Setup drop target per la home
+        homeRecyclerView.setOnDragListener { _, event -> handleDrop(event, isDock = false) }
 
         drawerOverlay = findViewById(R.id.drawerOverlay)
         drawerContainer = findViewById(R.id.drawerContainer)
         drawerRecyclerView = findViewById(R.id.drawerRecyclerView)
 
-        // Cassetto: 4 colonne fisse (non toccato dalle impostazioni)
         drawerRecyclerView.layoutManager = GridLayoutManager(this, 4)
-        drawerRecyclerView.addItemDecoration(object : RecyclerView.ItemDecoration() {
-            override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
-                val spacing = (12 * resources.displayMetrics.density).toInt()
-                outRect.bottom = spacing
-            }
-        })
         drawerAdapter = AppAdapter(
             onClick = { app ->
                 AppRepository.launchApp(this, app.packageName)
                 closeDrawer()
             },
-            onLongPress = { app, view -> showContextMenu(app, view) }
+            onLongPress = { app, view -> showContextMenu(app, view) },
+            onStartDrag = { app, view -> startDrag(app, view) }
         )
         drawerRecyclerView.adapter = drawerAdapter
+
+        // Setup drop target per il cassetto (per ricevere dalla home)
+        drawerRecyclerView.setOnDragListener { _, event -> handleDrop(event, isDock = false) }
+
+        // Setup drop target per il dock
+        dockLayout.setOnDragListener { _, event -> handleDrop(event, isDock = true) }
 
         drawerOverlay.setOnClickListener {
             closeDrawer()
@@ -118,6 +123,78 @@ class HomeActivity : AppCompatActivity() {
             IntentFilter("com.simplylauncher.RELOAD"),
             RECEIVER_NOT_EXPORTED
         )
+    }
+
+    private fun startDrag(app: AppInfo, view: View) {
+        draggedPackage = app.packageName
+
+        val clip = ClipData.newPlainText("package", app.packageName)
+        val shadow = View.DragShadowBuilder(view)
+
+        view.startDragAndDrop(clip, shadow, null, 0)
+
+        // Se il cassetto è aperto, inizia la dissolvenza
+        if (drawerOpen) {
+            drawerOverlay.animate().alpha(0.3f).setDuration(300).start()
+        }
+    }
+
+    private fun handleDrop(event: DragEvent, isDock: Boolean): Boolean {
+        when (event.action) {
+            DragEvent.ACTION_DRAG_STARTED -> {
+                return event.clipDescription.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN)
+            }
+            DragEvent.ACTION_DRAG_ENTERED -> {
+                if (isDock) dockLayout.setBackgroundColor(Color.parseColor("#33FFFFFF"))
+                else if (drawerOpen) drawerContainer.setCardBackgroundColor(Color.parseColor("#66000000"))
+                return true
+            }
+            DragEvent.ACTION_DRAG_EXITED -> {
+                if (isDock) dockLayout.setBackgroundColor(Color.TRANSPARENT)
+                else if (drawerOpen) applyDrawerBackground()
+                return true
+            }
+            DragEvent.ACTION_DROP -> {
+                val pkg = event.clipData.getItemAt(0).text.toString()
+                if (isDock) {
+                    addToDock(pkg)
+                } else {
+                    addToHome(pkg)
+                }
+                // Ripristina alpha
+                drawerOverlay.animate().alpha(1f).setDuration(200).start()
+                return true
+            }
+            DragEvent.ACTION_DRAG_ENDED -> {
+                if (isDock) dockLayout.setBackgroundColor(Color.TRANSPARENT)
+                else if (drawerOpen) applyDrawerBackground()
+                // Ripristina alpha se il drop è fallito
+                drawerOverlay.animate().alpha(1f).setDuration(200).start()
+                draggedPackage = null
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun addToHome(pkg: String) {
+        lifecycleScope.launch {
+            val homeItems = Prefs.homeItemsFlow(this@HomeActivity).first()
+            if (!homeItems.contains(pkg)) {
+                Prefs.setHomeItems(this@HomeActivity, homeItems + pkg)
+                loadHomeApps()
+            }
+        }
+    }
+
+    private fun addToDock(pkg: String) {
+        lifecycleScope.launch {
+            val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
+            if (!dockItems.contains(pkg) && dockItems.size < 4) {
+                Prefs.setDockItems(this@HomeActivity, dockItems + pkg)
+                loadDockApps()
+            }
+        }
     }
 
     private fun applyGridSettings() {
@@ -176,6 +253,7 @@ class HomeActivity : AppCompatActivity() {
         emptyMessage.visibility = View.INVISIBLE
 
         applyDrawerBackground()
+        drawerOverlay.alpha = 1f
         drawerOverlay.visibility = View.VISIBLE
         drawerOverlay.startAnimation(
             AnimationUtils.loadAnimation(this, R.anim.slide_in_up)
