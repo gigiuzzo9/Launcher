@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
+import android.graphics.Rect
 import android.os.Bundle
 import android.provider.Settings
 import android.view.Gravity
@@ -77,6 +78,13 @@ class HomeActivity : AppCompatActivity() {
         drawerRecyclerView = findViewById(R.id.drawerRecyclerView)
 
         drawerRecyclerView.layoutManager = GridLayoutManager(this, 4)
+        // Aggiunge spazio verticale tra le righe del cassetto
+        drawerRecyclerView.addItemDecoration(object : RecyclerView.ItemDecoration() {
+            override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
+                val spacing = (12 * resources.displayMetrics.density).toInt()
+                outRect.bottom = spacing
+            }
+        })
         drawerAdapter = AppAdapter(
             onClick = { app ->
                 AppRepository.launchApp(this, app.packageName)
