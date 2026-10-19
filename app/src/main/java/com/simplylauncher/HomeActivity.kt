@@ -74,6 +74,7 @@ class HomeActivity : AppCompatActivity() {
     private var currentRows = 6
     private var currentPageCount = 1
     private var isDropInProgress = false
+    private var currentDrawerColor: Int = Color.BLACK
 
     private val REQUEST_PICK_WIDGET = 100
     private val REQUEST_BIND_WIDGET = 101
@@ -126,6 +127,7 @@ class HomeActivity : AppCompatActivity() {
             currentCols = Prefs.colsFlow(this@HomeActivity).first()
             currentRows = Prefs.rowsFlow(this@HomeActivity).first()
             currentPageCount = Prefs.pageCountFlow(this@HomeActivity).first()
+            currentDrawerColor = Prefs.colorFlow(this@HomeActivity).first()
             rebuildPagerAdapter()
             loadHomeApps()
             dockController.refresh()
@@ -183,8 +185,6 @@ class HomeActivity : AppCompatActivity() {
             }
             REQUEST_BIND_WIDGET -> {
                 if (resultCode == RESULT_OK) {
-                    // Il binding è già stato completato dal sistema con il consenso dell'utente.
-                    // NON richiamare bindAppWidgetIdIfAllowed qui.
                     val info = appWidgetManager.getAppWidgetInfo(pendingWidgetId)
                     if (info != null) {
                         if (info.configure != null) {
@@ -624,14 +624,22 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showHomePopup(anchor: View) {
-        homePopupMenu.show(anchor, showRemovePage = currentPageCount > 1)
+        homePopupMenu.show(
+            anchor,
+            showRemovePage = currentPageCount > 1,
+            drawerIsWhite = (currentDrawerColor == Color.WHITE)
+        )
     }
 
     fun showContextMenuForDrag(app: AppInfo, anchor: View, fromDrawer: Boolean) {
         currentApp = app
         currentAnchor = anchor
         currentFromDrawer = fromDrawer
-        contextMenuView.show(anchor, showRemove = !fromDrawer)
+        contextMenuView.show(
+            anchor,
+            showRemove = !fromDrawer,
+            drawerIsWhite = (currentDrawerColor == Color.WHITE)
+        )
     }
 
     fun dismissDragPopup() {
@@ -870,6 +878,7 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val color = Prefs.colorFlow(this@HomeActivity).first()
             val alpha = Prefs.alphaFlow(this@HomeActivity).first()
+            currentDrawerColor = color
             drawerContainer.setCardBackgroundColor(
                 Color.argb((alpha * 255).toInt(), Color.red(color), Color.green(color), Color.blue(color))
             )
@@ -883,6 +892,7 @@ class HomeActivity : AppCompatActivity() {
             currentCols = Prefs.colsFlow(this@HomeActivity).first()
             currentRows = Prefs.rowsFlow(this@HomeActivity).first()
             currentPageCount = Prefs.pageCountFlow(this@HomeActivity).first()
+            currentDrawerColor = Prefs.colorFlow(this@HomeActivity).first()
             rebuildPagerAdapter()
             loadHomeApps()
             dockController.refresh()
