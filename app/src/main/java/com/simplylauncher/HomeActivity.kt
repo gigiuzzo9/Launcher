@@ -21,7 +21,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
-import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -43,7 +42,6 @@ class HomeActivity : AppCompatActivity() {
 
     private lateinit var contextMenuView: AppContextMenuView
     private var currentApp: AppInfo? = null
-    private lateinit var itemTouchHelper: ItemTouchHelper
 
     private val reloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -75,7 +73,6 @@ class HomeActivity : AppCompatActivity() {
         setupDrawerButton()
         setupContextMenu()
         applyGridSettings()
-        setupItemTouchHelper()
 
         adapter = AppAdapter(
             onClick = { app -> AppRepository.launchApp(this, app.packageName) },
@@ -130,38 +127,14 @@ class HomeActivity : AppCompatActivity() {
         )
     }
 
-    private fun setupItemTouchHelper() {
-        val callback = object : ItemTouchHelper.SimpleCallback(
-            ItemTouchHelper.UP or ItemTouchHelper.DOWN or ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT,
-            0
-        ) {
-            override fun onMove(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder): Boolean {
-                val from = viewHolder.adapterPosition
-                val to = target.adapterPosition
-                val list = adapter.currentList.toMutableList()
-                val item = list.removeAt(from)
-                list.add(to, item)
-                adapter.submitList(list)
-                return true
-            }
-            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {}
-            override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
-                super.clearView(recyclerView, viewHolder)
-                saveHomeOrder()
-            }
-        }
-        itemTouchHelper = ItemTouchHelper(callback)
-        itemTouchHelper.attachToRecyclerView(homeRecyclerView)
-    }
-
     private fun startDrag(holder: RecyclerView.ViewHolder) {
-        itemTouchHelper.startDrag(holder)
-    }
+        val app = adapter.currentList.getOrNull(holder.adapterPosition) ?: return
+        val clip = ClipData.newPlainText("package", app.packageName)
+        val shadow = View.DragShadowBuilder(holder.itemView)
+        holder.itemView.startDragAndDrop(clip, shadow, null, 0)
 
-    private fun saveHomeOrder() {
-        lifecycleScope.launch {
-            val newOrder = adapter.currentList.map { it.packageName }
-            Prefs.setHomeItems(this@HomeActivity, newOrder)
+        if (drawerOpen) {
+            drawerOverlay.animate().alpha(0.15f).setDuration(300).start()
         }
     }
 
