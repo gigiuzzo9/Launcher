@@ -11,7 +11,8 @@ import androidx.recyclerview.widget.RecyclerView
 
 class AppAdapter(
     private val onClick: (AppInfo) -> Unit,
-    private val onLongPress: (AppInfo, View) -> Unit
+    private val onLongPress: (AppInfo, View) -> Unit,
+    private val onStartDrag: ((RecyclerView.ViewHolder) -> Unit)? = null
 ) : ListAdapter<AppInfo, AppAdapter.AppViewHolder>(DiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AppViewHolder {
