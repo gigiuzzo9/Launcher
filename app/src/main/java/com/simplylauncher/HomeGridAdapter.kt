@@ -11,7 +11,8 @@ import androidx.recyclerview.widget.RecyclerView
 
 class HomeGridAdapter(
     private val onClick: (HomeSlot) -> Unit,
-    private val onLongPress: (HomeSlot, View) -> Unit
+    private val onLongPress: (HomeSlot, View) -> Unit,
+    private val onEmptyCellClick: () -> Unit
 ) : ListAdapter<HomeSlot, HomeGridAdapter.SlotViewHolder>(DiffCallback()) {
 
     private var cellHeight: Int = 0
@@ -40,8 +41,8 @@ class HomeGridAdapter(
         if (from !in current.indices || to !in current.indices) return false
         val a = current[from]
         val b = current[to]
-        current[from] = a.copy(row = b.row, col = b.col)
-        current[to] = b.copy(row = a.row, col = a.col)
+        current[from] = a.copy(row = b.row, col = b.col, page = b.page)
+        current[to] = b.copy(row = a.row, col = a.col, page = a.page)
         submitList(current)
         return true
     }
@@ -70,10 +71,11 @@ class HomeGridAdapter(
                     true
                 }
             } else {
+                // cella vuota: visibile ma trasparente, cliccabile per aprire il popup
                 icon.setImageDrawable(null)
                 label.text = ""
-                itemView.visibility = View.INVISIBLE
-                itemView.setOnClickListener(null)
+                itemView.visibility = View.VISIBLE
+                itemView.setOnClickListener { onEmptyCellClick() }
                 itemView.setOnLongClickListener(null)
             }
         }
@@ -81,7 +83,9 @@ class HomeGridAdapter(
 
     class DiffCallback : DiffUtil.ItemCallback<HomeSlot>() {
         override fun areItemsTheSame(oldItem: HomeSlot, newItem: HomeSlot): Boolean {
-            return oldItem.row == newItem.row && oldItem.col == newItem.col
+            return oldItem.row == newItem.row &&
+                    oldItem.col == newItem.col &&
+                    oldItem.page == newItem.page
         }
 
         override fun areContentsTheSame(oldItem: HomeSlot, newItem: HomeSlot): Boolean {
