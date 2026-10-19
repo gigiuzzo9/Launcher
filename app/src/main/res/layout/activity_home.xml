@@ -6,15 +6,24 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/homeRecyclerView"
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/homeViewPager"
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:paddingTop="16dp"
-        android:paddingBottom="100dp"
+        android:paddingBottom="4dp"
         android:clipToPadding="false"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/pageIndicator"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <com.simplylauncher.PageIndicatorView
+        android:id="@+id/pageIndicator"
+        android:layout_width="wrap_content"
+        android:layout_height="16dp"
+        android:layout_marginBottom="4dp"
+        app:layout_constraintBottom_toTopOf="@id/dockLayout"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
