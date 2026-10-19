@@ -181,7 +181,18 @@ class HomeActivity : AppCompatActivity() {
                     if (widgetId != -1) {
                         pendingWidgetId = widgetId
                         val info = appWidgetManager.getAppWidgetInfo(widgetId)
-                        if (info != null) requestBindOrConfigure(info)
+                        if (info != null) {
+                            // ORA cerca la cella libera e poi procedi
+                            lifecycleScope.launch {
+                                findFreeCellAndProceed(info)
+                            }
+                        }
+                    }
+                } else {
+                    // Utente ha annullato: elimina l'ID allocato
+                    if (pendingWidgetId != -1) {
+                        appWidgetHost.deleteAppWidgetId(pendingWidgetId)
+                        pendingWidgetId = -1
                     }
                 }
             }
@@ -202,6 +213,7 @@ class HomeActivity : AppCompatActivity() {
                 } else {
                     Toast.makeText(this, R.string.widget_bind_denied, Toast.LENGTH_SHORT).show()
                     appWidgetHost.deleteAppWidgetId(pendingWidgetId)
+                    pendingWidgetId = -1
                 }
             }
             REQUEST_CONFIGURE_WIDGET -> {
@@ -209,6 +221,44 @@ class HomeActivity : AppCompatActivity() {
                 else Toast.makeText(this, R.string.widget_config_cancelled, Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    private suspend fun findFreeCellAndProceed(info: AppWidgetProviderInfo) {
+        val slots = Prefs.homeSlotsFlow(this@HomeActivity).first()
+        val widgets = Prefs.widgetSlotsFlow(this@HomeActivity).first()
+        val occupied = mutableSetOf<Pair<Int, Int>>()
+        slots.filter { it.page == pendingWidgetPage }.forEach { occupied.add(it.row to it.col) }
+        widgets.filter { it.page == pendingWidgetPage }.forEach {
+            for (r in it.row until it.row + it.heightCells) {
+                for (c in it.col until it.col + it.widthCells) occupied.add(r to c)
+            }
+        }
+        var found = false
+        for (r in 0 until currentRows) {
+            for (c in 0..(currentCols - pendingWidgetWidthCells)) {
+                var free = true
+                for (dr in 0 until pendingWidgetHeightCells) {
+                    for (dc in 0 until pendingWidgetWidthCells) {
+                        if (occupied.contains(r + dr to c + dc)) { free = false; break }
+                    }
+                    if (!free) break
+                }
+                if (free) {
+                    pendingWidgetRow = r
+                    pendingWidgetCol = c
+                    found = true
+                    break
+                }
+            }
+            if (found) break
+        }
+        if (!found) {
+            Toast.makeText(this@HomeActivity, "Nessuno spazio libero", Toast.LENGTH_SHORT).show()
+            appWidgetHost.deleteAppWidgetId(pendingWidgetId)
+            pendingWidgetId = -1
+            return
+        }
+        requestBindOrConfigure(info)
     }
 
     private fun requestBindOrConfigure(info: AppWidgetProviderInfo) {
@@ -257,52 +307,20 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun startWidgetPicker() {
+        // Alloca l'ID e apri SUBITO il picker di sistema
         val appWidgetId = appWidgetHost.allocateAppWidgetId()
         pendingWidgetId = appWidgetId
         pendingWidgetPage = homeViewPager.currentItem
         pendingWidgetWidthCells = 2.coerceAtMost(currentCols)
         pendingWidgetHeightCells = 1
 
-        lifecycleScope.launch {
-            val slots = Prefs.homeSlotsFlow(this@HomeActivity).first()
-            val widgets = Prefs.widgetSlotsFlow(this@HomeActivity).first()
-            val occupied = mutableSetOf<Pair<Int, Int>>()
-            slots.filter { it.page == pendingWidgetPage }.forEach { occupied.add(it.row to it.col) }
-            widgets.filter { it.page == pendingWidgetPage }.forEach {
-                for (r in it.row until it.row + it.heightCells) {
-                    for (c in it.col until it.col + it.widthCells) occupied.add(r to c)
-                }
-            }
-            var found = false
-            for (r in 0 until currentRows) {
-                for (c in 0..(currentCols - pendingWidgetWidthCells)) {
-                    var free = true
-                    for (dr in 0 until pendingWidgetHeightCells) {
-                        for (dc in 0 until pendingWidgetWidthCells) {
-                            if (occupied.contains(r + dr to c + dc)) { free = false; break }
-                        }
-                        if (!free) break
-                    }
-                    if (free) {
-                        pendingWidgetRow = r
-                        pendingWidgetCol = c
-                        found = true
-                        break
-                    }
-                }
-                if (found) break
-            }
-            if (!found) {
-                Toast.makeText(this@HomeActivity, "Nessuno spazio libero", Toast.LENGTH_SHORT).show()
-                appWidgetHost.deleteAppWidgetId(pendingWidgetId)
-                return@launch
-            }
-
-            val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).apply {
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            }
-            startActivityForResult(intent, REQUEST_PICK_WIDGET)
+        val pickIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).apply {
+            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            // Dati extra vuoti: alcuni dispositivi richiedono questi per aprire il picker
+            putParcelableArrayListExtra(AppWidgetManager.EXTRA_CUSTOM_INFO, ArrayList<AppWidgetProviderInfo>())
+            putParcelableArrayListExtra(AppWidgetManager.EXTRA_CUSTOM_EXTRAS, ArrayList<Bundle>())
         }
+        startActivityForResult(pickIntent, REQUEST_PICK_WIDGET)
     }
 
     private fun renderWidgets() {
