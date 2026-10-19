@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
+import android.graphics.Rect
 import android.os.Bundle
 import android.provider.Settings
 import android.view.DragEvent
@@ -87,6 +88,12 @@ class HomeActivity : AppCompatActivity() {
         drawerRecyclerView = findViewById(R.id.drawerRecyclerView)
 
         drawerRecyclerView.layoutManager = GridLayoutManager(this, 4)
+        drawerRecyclerView.addItemDecoration(object : RecyclerView.ItemDecoration() {
+            override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
+                val spacing = (12 * resources.displayMetrics.density).toInt()
+                outRect.bottom = spacing
+            }
+        })
         drawerAdapter = AppAdapter(
             onClick = { app ->
                 AppRepository.launchApp(this, app.packageName)
@@ -173,7 +180,10 @@ class HomeActivity : AppCompatActivity() {
 
     private fun showContextMenu(app: AppInfo, anchor: View, x: Float, y: Float) {
         currentApp = app
-        contextMenuView.show(x, y)
+        // Mostra il menu AL CENTRO dello schermo
+        val screenWidth = resources.displayMetrics.widthPixels
+        val screenHeight = resources.displayMetrics.heightPixels
+        contextMenuView.show(screenWidth / 2f, screenHeight / 2f)
     }
 
     private fun startDrag(app: AppInfo, view: View) {
@@ -209,6 +219,7 @@ class HomeActivity : AppCompatActivity() {
                     addToDock(pkg)
                 } else if (isHomeGrid) {
                     val cols = getCurrentCols()
+                    val lm = homeRecyclerView.layoutManager as? GridLayoutManager
                     val cellWidth = homeRecyclerView.width / cols.toFloat()
                     val cellHeight = homeRecyclerView.height / 6f
                     val col = (event.x / cellWidth).toInt().coerceIn(0, cols - 1)
@@ -224,7 +235,6 @@ class HomeActivity : AppCompatActivity() {
             DragEvent.ACTION_DRAG_ENDED -> {
                 if (isDock) dockLayout.setBackgroundColor(Color.TRANSPARENT)
                 if (drawerOpen && !event.result) {
-                    // Se il drag è fallito e il cassetto era aperto, lo chiudo
                     closeDrawer()
                 }
                 drawerOverlay.animate().alpha(1f).setDuration(200).start()
