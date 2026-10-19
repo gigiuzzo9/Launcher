@@ -7,17 +7,13 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
 
-/**
- * Adapter per il ViewPager2 della home.
- * Ogni pagina è un RecyclerView con la sua griglia di HomeSlot.
- */
 class HomePagerAdapter(
     private val viewPager: ViewPager2,
     private val cols: Int,
     private val rows: Int,
     private val onSlotClick: (HomeSlot) -> Unit,
     private val onSlotLongPress: (HomeSlot, View) -> Unit,
-    private val onEmptyCellClick: () -> Unit,
+    private val onEmptyCellLongPress: (View) -> Unit,
     private val onPageCreated: (page: Int, recycler: RecyclerView) -> Unit
 ) : RecyclerView.Adapter<HomePagerAdapter.PageViewHolder>() {
 
@@ -68,7 +64,6 @@ class HomePagerAdapter(
                 override fun getItemOffsets(
                     outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State
                 ) {
-                    // nessuno spacing extra
                 }
             })
         }
@@ -82,7 +77,7 @@ class HomePagerAdapter(
             val adapter = HomeGridAdapter(
                 onClick = { slot -> onSlotClick(slot) },
                 onLongPress = { slot, view -> onSlotLongPress(slot, view) },
-                onEmptyCellClick = { onEmptyCellClick() }
+                onEmptyCellLongPress = { view -> onEmptyCellLongPress(view) }
             )
             holder.recycler.adapter = adapter
             if (cellHeight > 0) adapter.setCellHeight(cellHeight)
