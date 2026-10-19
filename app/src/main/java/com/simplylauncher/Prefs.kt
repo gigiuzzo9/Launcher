@@ -22,6 +22,7 @@ object Prefs {
     private val KEY_PAGE_COUNT = intPreferencesKey("page_count")
     private val KEY_DOCK_ITEMS = stringPreferencesKey("dock_items")
     private val KEY_CUSTOM_LABELS = stringPreferencesKey("custom_labels")
+    private val KEY_WIDGET_SLOTS = stringPreferencesKey("widget_slots")
 
     fun colorFlow(context: Context): Flow<Int> =
         context.dataStore.data.map { it[KEY_COLOR] ?: 0xFF000000.toInt() }
@@ -35,32 +36,24 @@ object Prefs {
     fun rowsFlow(context: Context): Flow<Int> =
         context.dataStore.data.map { it[KEY_ROWS] ?: 6 }
 
-    /**
-     * Numero di pagine della home. Minimo 1.
-     * Se non è mai stato salvato, lo deduce dagli slot (max page + 1).
-     */
     fun pageCountFlow(context: Context): Flow<Int> =
         context.dataStore.data.map { prefs ->
             val explicit = prefs[KEY_PAGE_COUNT]
-            if (explicit != null && explicit > 0) {
-                explicit
-            } else {
+            if (explicit != null && explicit > 0) explicit
+            else {
                 val rawSlots = prefs[KEY_HOME_SLOTS]
                 if (rawSlots != null) {
                     val maxPage = HomeSlot.stringToList(rawSlots).maxOfOrNull { it.page } ?: 0
                     maxPage + 1
-                } else {
-                    1
-                }
+                } else 1
             }
         }
 
     fun homeSlotsFlow(context: Context): Flow<List<HomeSlot>> =
         context.dataStore.data.map { prefs ->
             val raw = prefs[KEY_HOME_SLOTS]
-            if (raw != null) {
-                HomeSlot.stringToList(raw)
-            } else {
+            if (raw != null) HomeSlot.stringToList(raw)
+            else {
                 val oldRaw = prefs[KEY_HOME_ITEMS] ?: ""
                 val oldItems = oldRaw.split(",").filter { it.isNotBlank() }
                 val cols = prefs[KEY_COLS] ?: 4
@@ -68,11 +61,15 @@ object Prefs {
             }
         }
 
+    fun widgetSlotsFlow(context: Context): Flow<List<WidgetSlot>> =
+        context.dataStore.data.map { prefs ->
+            WidgetSlot.stringToList(prefs[KEY_WIDGET_SLOTS] ?: "")
+        }
+
     fun dockItemsFlow(context: Context): Flow<List<String>> =
         context.dataStore.data.map { prefs ->
             val raw = prefs[KEY_DOCK_ITEMS]
-            if (raw.isNullOrEmpty()) emptyList()
-            else raw.split(",")
+            if (raw.isNullOrEmpty()) emptyList() else raw.split(",")
         }
 
     fun customLabelsFlow(context: Context): Flow<Map<String, String>> =
@@ -109,10 +106,13 @@ object Prefs {
         context.dataStore.edit {
             it[KEY_HOME_SLOTS] = HomeSlot.listToString(slots)
             it.remove(KEY_HOME_ITEMS)
-            // aggiorna anche il pageCount dedotto
             val maxPage = slots.maxOfOrNull { s -> s.page } ?: 0
             it[KEY_PAGE_COUNT] = maxPage + 1
         }
+    }
+
+    suspend fun setWidgetSlots(context: Context, slots: List<WidgetSlot>) {
+        context.dataStore.edit { it[KEY_WIDGET_SLOTS] = WidgetSlot.listToString(slots) }
     }
 
     suspend fun setHomeItems(context: Context, items: List<String>) {
@@ -135,7 +135,6 @@ object Prefs {
                 val parts = it.split(":", limit = 2)
                 parts[0] to (parts.getOrNull(1) ?: "")
             }.toMutableMap()
-
             map[packageName] = label
             prefs[KEY_CUSTOM_LABELS] = map.entries.joinToString("|") { "${it.key}:${it.value}" }
         }
