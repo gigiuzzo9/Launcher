@@ -18,6 +18,11 @@
     <string name="menu_change_wallpaper">Modifica sfondo</string>
     <string name="menu_remove_page">Rimuovi pagina</string>
 
+    <string name="menu_remove_widget">Rimuovi widget</string>
+    <string name="widget_added">Widget aggiunto</string>
+    <string name="widget_bind_denied">Permesso widget negato</string>
+    <string name="widget_config_cancelled">Configurazione annullata</string>
+
     <string name="rename_title">Rinomina app</string>
     <string name="rename_hint">Nuovo nome</string>
     <string name="rename_confirm">Conferma</string>
