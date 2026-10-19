@@ -9,11 +9,6 @@ import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.TextView
 
-/**
- * Popup che appare con long-press su un punto vuoto della home.
- * Voci: "Aggiungi widget", "Aggiungi pagina", "Modifica sfondo",
- * e "Rimuovi pagina" (visibile solo se pageCount > 1).
- */
 class HomePopupMenu(private val ctx: Context) {
 
     var onAddWidget: (() -> Unit)? = null
@@ -29,12 +24,13 @@ class HomePopupMenu(private val ctx: Context) {
 
         val container = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(48, 24, 48, 24)
+            setPadding(32, 16, 32, 16)
             val drawable = GradientDrawable().apply {
-                cornerRadius = 24f
-                setColor(Color.parseColor("#EE000000"))
+                cornerRadius = 16f
+                setColor(Color.WHITE)
             }
             background = drawable
+            elevation = 8f * ctx.resources.displayMetrics.density
         }
 
         container.addView(createMenuItem(ctx.getString(R.string.menu_add_widget)) {
@@ -75,9 +71,9 @@ class HomePopupMenu(private val ctx: Context) {
     private fun createMenuItem(text: String, onClick: () -> Unit): TextView {
         return TextView(ctx).apply {
             this.text = text
-            setTextColor(Color.WHITE)
-            textSize = 20f
-            setPadding(64, 32, 64, 32)
+            setTextColor(Color.BLACK)
+            textSize = 16f
+            setPadding(32, 20, 32, 20)
             setOnClickListener { onClick() }
         }
     }
