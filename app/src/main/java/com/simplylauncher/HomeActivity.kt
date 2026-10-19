@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.DragEvent
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.animation.AnimationUtils
 import android.widget.FrameLayout
@@ -42,6 +43,11 @@ class HomeActivity : AppCompatActivity() {
 
     private lateinit var contextMenuView: AppContextMenuView
     private var currentApp: AppInfo? = null
+    private var currentAnchor: View? = null
+
+    private var popupOpened = false
+    private var popupStartX = 0f
+    private var popupStartY = 0f
 
     private val reloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -131,6 +137,30 @@ class HomeActivity : AppCompatActivity() {
         )
     }
 
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (popupOpened) {
+            when (ev.action) {
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = Math.abs(ev.rawX - popupStartX)
+                    val dy = Math.abs(ev.rawY - popupStartY)
+                    if (dx > 80 || dy > 80) {  // soglia 80px
+                        popupOpened = false
+                        contextMenuView.dismiss()
+                        currentApp?.let { app ->
+                            currentAnchor?.let { anchor ->
+                                startDrag(app, anchor)
+                            }
+                        }
+                    }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    popupOpened = false
+                }
+            }
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
     private fun setupContextMenu() {
         contextMenuView = AppContextMenuView(this)
 
@@ -169,12 +199,19 @@ class HomeActivity : AppCompatActivity() {
         }
 
         contextMenuView.onDismiss = {
-            currentApp = null
+            if (!popupOpened) {
+                currentApp = null
+                currentAnchor = null
+            }
         }
     }
 
     private fun showContextMenu(app: AppInfo, anchor: View) {
         currentApp = app
+        currentAnchor = anchor
+        popupOpened = true
+        popupStartX = anchor.x
+        popupStartY = anchor.y
         contextMenuView.show(anchor)
     }
 
