@@ -39,6 +39,7 @@ class HomeActivity : AppCompatActivity() {
 
     private val reloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
+            applyGridSettings()
             loadHomeApps()
             loadDockApps()
             loadDrawerApps()
@@ -66,7 +67,9 @@ class HomeActivity : AppCompatActivity() {
 
         setupDrawerButton()
 
-        homeRecyclerView.layoutManager = GridLayoutManager(this, 4)
+        // Applica le impostazioni della griglia
+        applyGridSettings()
+
         adapter = AppAdapter(
             onClick = { app -> AppRepository.launchApp(this, app.packageName) },
             onLongPress = { app, view -> showContextMenu(app, view) }
@@ -77,8 +80,8 @@ class HomeActivity : AppCompatActivity() {
         drawerContainer = findViewById(R.id.drawerContainer)
         drawerRecyclerView = findViewById(R.id.drawerRecyclerView)
 
+        // Cassetto: 4 colonne fisse (non toccato dalle impostazioni)
         drawerRecyclerView.layoutManager = GridLayoutManager(this, 4)
-        // Aggiunge spazio verticale tra le righe del cassetto
         drawerRecyclerView.addItemDecoration(object : RecyclerView.ItemDecoration() {
             override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
                 val spacing = (12 * resources.displayMetrics.density).toInt()
@@ -117,6 +120,13 @@ class HomeActivity : AppCompatActivity() {
         )
     }
 
+    private fun applyGridSettings() {
+        lifecycleScope.launch {
+            val cols = Prefs.colsFlow(this@HomeActivity).first()
+            homeRecyclerView.layoutManager = GridLayoutManager(this@HomeActivity, cols)
+        }
+    }
+
     private fun setupDrawerButton() {
         dockDrawerButton.removeAllViews()
 
@@ -139,6 +149,7 @@ class HomeActivity : AppCompatActivity() {
         if (drawerOpen) {
             closeDrawer()
         }
+        applyGridSettings()
         loadHomeApps()
         loadDockApps()
         loadDrawerApps()
