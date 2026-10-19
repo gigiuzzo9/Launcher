@@ -1,5 +1,7 @@
 package com.simplylauncher
 
+import android.content.ClipData
+import android.content.ClipDescription
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -11,7 +13,8 @@ import androidx.recyclerview.widget.RecyclerView
 
 class AppAdapter(
     private val onClick: (AppInfo) -> Unit,
-    private val onLongPress: (AppInfo, View) -> Unit
+    private val onLongPress: (AppInfo, View) -> Unit,
+    private val onStartDrag: ((AppInfo, View) -> Unit)? = null
 ) : ListAdapter<AppInfo, AppAdapter.AppViewHolder>(DiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AppViewHolder {
@@ -36,6 +39,14 @@ class AppAdapter(
             itemView.setOnLongClickListener { view ->
                 onLongPress(app, view)
                 true
+            }
+
+            // Se onStartDrag è definito, abilita il drag nativo
+            if (onStartDrag != null) {
+                itemView.setOnLongClickListener { view ->
+                    onStartDrag.invoke(app, view)
+                    true
+                }
             }
         }
     }
