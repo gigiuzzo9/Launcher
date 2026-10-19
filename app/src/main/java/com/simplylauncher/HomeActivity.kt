@@ -51,6 +51,8 @@ class HomeActivity : AppCompatActivity() {
 
     private var currentCols = 4
     private var currentRows = 6
+    private var isDropInProgress = false
+    private var isGridAdjusted = false
 
     private val reloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -116,13 +118,41 @@ class HomeActivity : AppCompatActivity() {
             IntentFilter("com.simplylauncher.RELOAD"),
             RECEIVER_NOT_EXPORTED
         )
+
+        // adatta l'altezza delle celle dopo che il layout è pronto
+        homeRecyclerView.post { adjustGridLayout() }
+        dockLayout.post { adjustGridLayout() }
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        // 1) drag controller
         if (::dragController.isInitialized && dragController.onInterceptTouch(ev)) {
             return true
         }
+
+        // 2) popup aperto: chiudi se tocchi fuori
+        if (::contextMenuView.isInitialized && contextMenuView.isShowing()) {
+            if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+                if (!contextMenuView.isPointInside(ev.rawX, ev.rawY)) {
+                    contextMenuView.dismiss()
+                    currentApp = null
+                    currentAnchor = null
+                }
+            }
+        }
+
         return super.dispatchTouchEvent(ev)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (::contextMenuView.isInitialized && contextMenuView.isShowing()) {
+            contextMenuView.dismiss()
+            currentApp = null
+            currentAnchor = null
+            return
+        }
+        if (drawerOpen) closeDrawer()
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -150,9 +180,6 @@ class HomeActivity : AppCompatActivity() {
             dragController.handleDrawerDragEvent(event)
         }
 
-        // listener sul CONTAINER della dock: se rilasci in un punto
-        // che non è nessuno slot (es. tra due slot o sul drawer button),
-        // trova lo slot più vicino e ci droppa
         dockLayout.setOnDragListener { _, event ->
             when (event.action) {
                 DragEvent.ACTION_DRAG_STARTED ->
@@ -163,7 +190,6 @@ class HomeActivity : AppCompatActivity() {
                     val pkg = event.clipData.getItemAt(0).text.toString()
                     val source = event.clipData.description.label?.toString() ?: ""
 
-                    // trova slot più vicino
                     var closestIndex = 0
                     var closestDist = Float.MAX_VALUE
                     val dockLoc = IntArray(2)
@@ -344,7 +370,6 @@ class HomeActivity : AppCompatActivity() {
     }
 
     fun onDragFromDrawerStarted() {
-        // nascondi SUBITO l'overlay, non aspettare l'animazione
         drawerOverlay.visibility = View.GONE
         drawerOverlay.alpha = 1f
         drawerOpen = false
@@ -359,12 +384,22 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    fun getCurrentRows(): Int = currentRows
+    fun getCurrentCols(): Int = currentCols
+
     // ─────────────────────────────────────────────────────────────
     // DROP
     // ─────────────────────────────────────────────────────────────
 
     private fun handleDropOnHome(pkg: String, x: Float, y: Float): Boolean {
-        val lm = homeRecyclerView.layoutManager as? GridLayoutManager ?: return false
+        if (isDropInProgress) return false
+        isDropInProgress = true
+
+        val lm = homeRecyclerView.layoutManager as? GridLayoutManager
+        if (lm == null) {
+            isDropInProgress = false
+            return false
+        }
         val cols = lm.spanCount
 
         val child = homeRecyclerView.findChildViewUnder(x, y)
@@ -377,31 +412,40 @@ class HomeActivity : AppCompatActivity() {
             row * cols + col
         }
 
-        if (targetPos == RecyclerView.NO_POSITION) return false
+        if (targetPos == RecyclerView.NO_POSITION) {
+            isDropInProgress = false
+            return false
+        }
 
         val currentList = homeAdapter.currentList.toMutableList()
-        if (targetPos !in currentList.indices) return false
+        if (targetPos !in currentList.indices) {
+            isDropInProgress = false
+            return false
+        }
 
         val sourceIndex = currentList.indexOfFirst { it.packageName == pkg }
         val targetSlot = currentList[targetPos]
 
         if (sourceIndex == -1) {
-            // app che viene da FUORI (dock o drawer): aggiungila nella cella target
+            // app che viene da FUORI (dock o drawer)
             currentList[targetPos] = HomeSlot(pkg, targetSlot.row, targetSlot.col)
             homeAdapter.submitList(currentList)
 
             lifecycleScope.launch {
-                val slots = Prefs.homeSlotsFlow(this@HomeActivity).first().toMutableList()
-                slots.removeAll { it.row == targetSlot.row && it.col == targetSlot.col }
-                slots.removeAll { it.packageName == pkg }
-                slots.add(HomeSlot(pkg, targetSlot.row, targetSlot.col))
-                Prefs.setHomeSlots(this@HomeActivity, slots)
+                try {
+                    val slots = Prefs.homeSlotsFlow(this@HomeActivity).first().toMutableList()
+                    slots.removeAll { it.packageName == pkg }
+                    slots.removeAll { it.row == targetSlot.row && it.col == targetSlot.col }
+                    slots.add(HomeSlot(pkg, targetSlot.row, targetSlot.col))
+                    Prefs.setHomeSlots(this@HomeActivity, slots)
 
-                // rimuovi dalla dock se presente
-                val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
-                if (dockItems.contains(pkg)) {
-                    Prefs.setDockItems(this@HomeActivity, dockItems.map { if (it == pkg) "" else it })
-                    dockController.refresh()
+                    val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
+                    if (dockItems.contains(pkg)) {
+                        Prefs.setDockItems(this@HomeActivity, dockItems.map { if (it == pkg) "" else it })
+                        dockController.refresh()
+                    }
+                } finally {
+                    isDropInProgress = false
                 }
             }
         } else {
@@ -412,14 +456,19 @@ class HomeActivity : AppCompatActivity() {
             homeAdapter.submitList(currentList)
 
             lifecycleScope.launch {
-                val slots = Prefs.homeSlotsFlow(this@HomeActivity).first().toMutableList()
-                slots.removeAll { it.packageName == pkg }
-                slots.removeAll { it.row == targetSlot.row && it.col == targetSlot.col }
-                slots.add(HomeSlot(pkg, targetSlot.row, targetSlot.col))
-                if (sourceSlot.packageName.isNotBlank()) {
-                    slots.add(HomeSlot(sourceSlot.packageName, sourceSlot.row, sourceSlot.col))
+                try {
+                    val slots = Prefs.homeSlotsFlow(this@HomeActivity).first().toMutableList()
+                    slots.removeAll { it.packageName == pkg }
+                    slots.removeAll { it.row == targetSlot.row && it.col == targetSlot.col }
+                    slots.add(HomeSlot(pkg, targetSlot.row, targetSlot.col))
+                    if (sourceSlot.packageName.isNotBlank() && sourceSlot.packageName != pkg) {
+                        slots.removeAll { it.packageName == sourceSlot.packageName }
+                        slots.add(HomeSlot(sourceSlot.packageName, sourceSlot.row, sourceSlot.col))
+                    }
+                    Prefs.setHomeSlots(this@HomeActivity, slots)
+                } finally {
+                    isDropInProgress = false
                 }
-                Prefs.setHomeSlots(this@HomeActivity, slots)
             }
         }
         return true
@@ -434,6 +483,55 @@ class HomeActivity : AppCompatActivity() {
             loadHomeApps()
             dockController.refresh()
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // GRIGLIA ADATTIVA
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Calcola l'altezza disponibile per la griglia (sottraendo dock e padding),
+     * la divide per currentRows e imposta l'altezza delle celle.
+     */
+    private fun adjustGridLayout() {
+        if (homeRecyclerView.height == 0) return
+        val rows = currentRows
+        if (rows <= 0) return
+
+        // calcola altezza dock + margine
+        val dockHeight = if (dockLayout.height > 0) {
+            dockLayout.height + (10 * resources.displayMetrics.density).toInt()
+        } else {
+            (90 * resources.displayMetrics.density).toInt()
+        }
+
+        // aggiorna il padding bottom del RecyclerView per non finire sotto la dock
+        val currentPaddingBottom = homeRecyclerView.paddingBottom
+        if (currentPaddingBottom != dockHeight) {
+            homeRecyclerView.setPadding(
+                homeRecyclerView.paddingLeft,
+                homeRecyclerView.paddingTop,
+                homeRecyclerView.paddingRight,
+                dockHeight
+            )
+        }
+
+        val availableHeight = homeRecyclerView.height - homeRecyclerView.paddingTop - dockHeight
+        if (availableHeight <= 0) return
+
+        val cellHeight = availableHeight / rows
+        if (cellHeight <= 0) return
+
+        // applica a tutte le view figlie
+        for (i in 0 until homeRecyclerView.childCount) {
+            val child = homeRecyclerView.getChildAt(i)
+            val lp = child.layoutParams
+            if (lp.height != cellHeight) {
+                lp.height = cellHeight
+                child.layoutParams = lp
+            }
+        }
+        isGridAdjusted = true
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -460,7 +558,9 @@ class HomeActivity : AppCompatActivity() {
                 slots.firstOrNull { it.row == row && it.col == col }
                     ?: HomeSlot("", row, col)
             }
-            homeAdapter.submitList(fullList)
+            homeAdapter.submitList(fullList) {
+                homeRecyclerView.post { adjustGridLayout() }
+            }
 
             if (!drawerOpen) {
                 if (slots.isEmpty()) {
@@ -540,17 +640,13 @@ class HomeActivity : AppCompatActivity() {
             loadHomeApps()
             dockController.refresh()
             loadDrawerApps()
+            homeRecyclerView.post { adjustGridLayout() }
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         try { unregisterReceiver(reloadReceiver) } catch (_: Exception) {}
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        if (drawerOpen) closeDrawer()
     }
 
     private fun askLauncherIfNeeded() {
