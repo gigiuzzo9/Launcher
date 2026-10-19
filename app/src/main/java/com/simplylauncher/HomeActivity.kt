@@ -1,7 +1,6 @@
 package com.simplylauncher
 
 import android.content.BroadcastReceiver
-import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -119,6 +118,18 @@ class HomeActivity : AppCompatActivity() {
         )
     }
 
+    /**
+     * Intercetta TUTTI i touch prima che arrivino ai figli.
+     * Necessario perché i RecyclerView consumano gli eventi MOVE
+     * e il DragController non li vedrebbe altrimenti.
+     */
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (::dragController.isInitialized && dragController.onInterceptTouch(ev)) {
+            return true
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
     // ─────────────────────────────────────────────────────────────
     // SETUP
     // ─────────────────────────────────────────────────────────────
@@ -126,7 +137,6 @@ class HomeActivity : AppCompatActivity() {
     private fun setupDragController() {
         dragController = DragController(
             activity = this,
-            rootView = findViewById(android.R.id.content),
             homeRecyclerView = homeRecyclerView,
             drawerOverlay = drawerOverlay,
             onDropOnHome = { pkg, x, y -> handleDropOnHome(pkg, x, y) },
@@ -136,29 +146,16 @@ class HomeActivity : AppCompatActivity() {
             }
         )
 
-        // collega il touch listener al root per intercettare i move durante il pending
-        findViewById<View>(android.R.id.content).setOnTouchListener { _, event ->
-            dragController.onTouchEvent(event)
-            false
-        }
-
-        // listener drop sulla home
         homeRecyclerView.setOnDragListener { _, event ->
             dragController.handleHomeDragEvent(event)
         }
 
-        // listener drop sul drawer (rimuove dalla home)
         drawerRecyclerView.setOnDragListener { _, event ->
             dragController.handleDrawerDragEvent(event)
         }
 
-        // anche l'overlay deve accettare il drop per rimuovere
         drawerOverlay.setOnDragListener { _, event ->
-            if (event.action == DragEvent.ACTION_DROP) {
-                dragController.handleDrawerDragEvent(event)
-            } else {
-                false
-            }
+            dragController.handleDrawerDragEvent(event)
         }
     }
 
@@ -198,9 +195,7 @@ class HomeActivity : AppCompatActivity() {
                 val to = target.adapterPosition
                 if (from == RecyclerView.NO_POSITION || to == RecyclerView.NO_POSITION) return false
                 val swapped = homeAdapter.swap(from, to)
-                if (swapped) {
-                    persistHomeSlots()
-                }
+                if (swapped) persistHomeSlots()
                 return swapped
             }
 
@@ -236,10 +231,7 @@ class HomeActivity : AppCompatActivity() {
     private fun setupContextMenu() {
         contextMenuView = AppContextMenuView(this)
 
-        contextMenuView.onMove = {
-            // non usato: il drag parte direttamente
-            contextMenuView.dismiss()
-        }
+        contextMenuView.onMove = { contextMenuView.dismiss() }
 
         contextMenuView.onUninstall = {
             currentApp?.let { app ->
@@ -306,45 +298,36 @@ class HomeActivity : AppCompatActivity() {
         val lm = homeRecyclerView.layoutManager as? GridLayoutManager ?: return false
         val cols = lm.spanCount
 
-        // trova item sotto il dito
         val child = homeRecyclerView.findChildViewUnder(x, y)
         val targetPos = if (child != null) {
             homeRecyclerView.getChildAdapterPosition(child)
         } else {
-            // calcola cella in base alla posizione
             val cellW = homeRecyclerView.width / cols.toFloat()
-            val cellH = cellW
             val col = (x / cellW).toInt().coerceIn(0, cols - 1)
-            val row = (y / cellH).toInt()
+            val row = (y / cellW).toInt()
             row * cols + col
         }
 
+        if (targetPos == RecyclerView.NO_POSITION) return false
+
         lifecycleScope.launch {
             val slots = Prefs.homeSlotsFlow(this@HomeActivity).first().toMutableList()
-            // rimuovi il pkg esistente se c'è
+            val original = slots.firstOrNull { it.packageName == pkg }
             slots.removeAll { it.packageName == pkg }
 
-            // posizione target
             val row = targetPos / cols
             val col = targetPos % cols
 
-            // se c'è già un item in quella posizione, swap
             val occupant = slots.firstOrNull { it.row == row && it.col == col }
-            if (occupant != null) {
-                // l'occupante va dove eravamo
-                val original = Prefs.homeSlotsFlow(this@HomeActivity).first()
-                    .firstOrNull { it.packageName == pkg }
-                if (original != null) {
-                    slots.removeAll { it.packageName == occupant.packageName }
-                    slots.add(HomeSlot(occupant.packageName, original.row, original.col))
-                }
+            if (occupant != null && original != null) {
+                slots.removeAll { it.packageName == occupant.packageName }
+                slots.add(HomeSlot(occupant.packageName, original.row, original.col))
             }
 
             slots.removeAll { it.row == row && it.col == col }
             slots.add(HomeSlot(pkg, row, col))
             Prefs.setHomeSlots(this@HomeActivity, slots)
 
-            // se il pkg era nella dock, rimuovilo
             val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
             if (dockItems.contains(pkg)) {
                 Prefs.setDockItems(this@HomeActivity, dockItems - pkg)
@@ -381,9 +364,7 @@ class HomeActivity : AppCompatActivity() {
             val allApps = AppRepository.loadInstalledAppsWithCustomLabels(this@HomeActivity)
             HomeGridAdapter.AppCache.putAll(allApps)
 
-            // crea la lista con TUTTI gli slot fino alla posizione massima
             val maxIndex = slots.maxOfOrNull { it.row * currentCols + it.col } ?: -1
-            // assicurati che la griglia abbia almeno N slot per riempire lo schermo
             val minSlots = currentCols * currentRows
             val totalSlots = maxOf(maxIndex + 1, minSlots)
 
@@ -391,7 +372,7 @@ class HomeActivity : AppCompatActivity() {
                 val row = index / currentCols
                 val col = index % currentCols
                 slots.firstOrNull { it.row == row && it.col == col }
-                    ?: HomeSlot("", row, col) // slot vuoto
+                    ?: HomeSlot("", row, col)
             }
             homeAdapter.submitList(fullList)
 
@@ -413,8 +394,7 @@ class HomeActivity : AppCompatActivity() {
 
     private fun persistHomeSlots() {
         lifecycleScope.launch {
-            val current = homeAdapter.currentList
-                .filter { it.packageName.isNotBlank() }
+            val current = homeAdapter.currentList.filter { it.packageName.isNotBlank() }
             Prefs.setHomeSlots(this@HomeActivity, current)
         }
     }
