@@ -114,7 +114,7 @@ class HomeActivity : AppCompatActivity() {
 
         val imageView = ImageView(this).apply {
             setImageResource(R.drawable.ic_drawer)
-            val size = (65 * resources.displayMetrics.density).toInt()
+            val size = (62 * resources.displayMetrics.density).toInt()
             layoutParams = FrameLayout.LayoutParams(size, size).apply {
                 gravity = Gravity.CENTER
             }
@@ -229,7 +229,7 @@ class HomeActivity : AppCompatActivity() {
                 if (app != null) {
                     val imageView = ImageView(this@HomeActivity).apply {
                         setImageDrawable(app.icon)
-                        val size = (65 * resources.displayMetrics.density).toInt()
+                        val size = (62 * resources.displayMetrics.density).toInt()
                         layoutParams = FrameLayout.LayoutParams(size, size).apply {
                             gravity = Gravity.CENTER
                         }
