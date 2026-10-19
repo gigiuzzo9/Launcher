@@ -20,6 +20,8 @@ class AppContextMenuView(private val ctx: Context) {
     private var popupWindow: PopupWindow? = null
 
     fun show(anchor: View, showRemove: Boolean) {
+        dismiss()
+
         val container = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(24, 16, 24, 16)
@@ -30,25 +32,6 @@ class AppContextMenuView(private val ctx: Context) {
             background = drawable
         }
 
-        // Sposta (sempre presente)
-        container.addView(createMenuItem(ctx.getString(R.string.menu_move)) {
-            onMove?.invoke()
-            dismiss()
-        })
-
-        // Disinstalla
-        container.addView(createMenuItem(ctx.getString(R.string.menu_uninstall)) {
-            onUninstall?.invoke()
-            dismiss()
-        })
-
-        // Rinomina
-        container.addView(createMenuItem(ctx.getString(R.string.menu_rename)) {
-            onRename?.invoke()
-            dismiss()
-        })
-
-        // Rimuovi (solo se showRemove)
         if (showRemove) {
             container.addView(createMenuItem(ctx.getString(R.string.menu_remove)) {
                 onRemove?.invoke()
@@ -56,14 +39,24 @@ class AppContextMenuView(private val ctx: Context) {
             })
         }
 
+        container.addView(createMenuItem(ctx.getString(R.string.menu_uninstall)) {
+            onUninstall?.invoke()
+            dismiss()
+        })
+
+        container.addView(createMenuItem(ctx.getString(R.string.menu_rename)) {
+            onRename?.invoke()
+            dismiss()
+        })
+
         popupWindow = PopupWindow(
             container,
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT,
-            true
+            false // NON focusable: così non ruba i touch al drag
         ).apply {
-            isOutsideTouchable = true
-            isFocusable = true
+            isOutsideTouchable = false
+            isFocusable = false
             setOnDismissListener { onDismiss?.invoke() }
             showAtLocation(anchor, Gravity.CENTER, 0, 0)
         }
