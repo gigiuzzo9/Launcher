@@ -40,6 +40,7 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var dockDrawerButton: FrameLayout
     private lateinit var dockLayout: View
     private lateinit var dockSlots: List<FrameLayout>
+    private lateinit var widgetOverlay: FrameLayout
 
     private lateinit var homePagerAdapter: HomePagerAdapter
 
@@ -100,6 +101,7 @@ class HomeActivity : AppCompatActivity() {
         emptyMessage = findViewById(R.id.emptyMessage)
         dockDrawerButton = findViewById(R.id.dockDrawerButton)
         dockLayout = findViewById(R.id.dockLayout)
+        widgetOverlay = findViewById(R.id.widgetOverlay)
 
         dockSlots = listOf(
             findViewById(R.id.dockSlot1),
@@ -307,21 +309,30 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val widgets = Prefs.widgetSlotsFlow(this@HomeActivity).first()
             val recycler = homePagerAdapter.getRecycler(homeViewPager.currentItem) ?: return@launch
-            val overlay = homePagerAdapter.getOverlay(homeViewPager.currentItem) ?: return@launch
 
             if (recycler.width == 0 || recycler.height == 0) {
                 homeViewPager.postDelayed({ renderWidgets() }, 100)
                 return@launch
             }
+            if (widgetOverlay.width == 0 || widgetOverlay.height == 0) {
+                homeViewPager.postDelayed({ renderWidgets() }, 100)
+                return@launch
+            }
 
-            overlay.removeAllViews()
+            widgetOverlay.removeAllViews()
 
             val cellW = recycler.width / currentCols
             val cellH = (recycler.height - recycler.paddingTop - recycler.paddingBottom) / currentRows
 
+            val recyclerLoc = IntArray(2)
+            recycler.getLocationOnScreen(recyclerLoc)
+            val overlayLoc = IntArray(2)
+            widgetOverlay.getLocationOnScreen(overlayLoc)
+            val offsetX = recyclerLoc[0] - overlayLoc[0]
+            val offsetY = recyclerLoc[1] - overlayLoc[1]
+
             widgets.filter { it.page == homeViewPager.currentItem }.forEach { slot ->
                 val info = appWidgetManager.getAppWidgetInfo(slot.appWidgetId) ?: return@forEach
-                // Fossify usa baseContext per evitare errori con i temi
                 val hostView = appWidgetHost.createView(baseContext, slot.appWidgetId, info) as AppWidgetHostView
                 hostView.setAppWidget(slot.appWidgetId, info)
 
@@ -329,10 +340,10 @@ class HomeActivity : AppCompatActivity() {
                     cellW * slot.widthCells,
                     cellH * slot.heightCells
                 ).apply {
-                    leftMargin = slot.col * cellW
-                    topMargin = recycler.paddingTop + slot.row * cellH
+                    leftMargin = offsetX + slot.col * cellW
+                    topMargin = offsetY + recycler.paddingTop + slot.row * cellH
                 }
-                overlay.addView(hostView, lp)
+                widgetOverlay.addView(hostView, lp)
 
                 hostView.setOnLongClickListener { _ ->
                     AlertDialog.Builder(this@HomeActivity)
@@ -590,7 +601,7 @@ class HomeActivity : AppCompatActivity() {
                 if (app != null) dragController.onLongPress(app, view, DragController.SOURCE_HOME, false)
             },
             onEmptyCellLongPress = { view -> showHomePopup(view) },
-            onPageCreated = { _, recycler, _ -> setupRecyclerTouchHelper(recycler) }
+            onPageCreated = { _, recycler -> setupRecyclerTouchHelper(recycler) }
         )
         homeViewPager.adapter = homePagerAdapter
         pageIndicator.setPageCount(currentPageCount)
@@ -855,6 +866,7 @@ class HomeActivity : AppCompatActivity() {
         pageIndicator.visibility = View.INVISIBLE
         dockLayout.visibility = View.INVISIBLE
         emptyMessage.visibility = View.INVISIBLE
+        widgetOverlay.visibility = View.INVISIBLE
         applyDrawerBackground()
         drawerOverlay.alpha = 1f
         drawerOverlay.visibility = View.VISIBLE
@@ -868,6 +880,7 @@ class HomeActivity : AppCompatActivity() {
         homeViewPager.visibility = View.VISIBLE
         pageIndicator.visibility = View.VISIBLE
         dockLayout.visibility = View.VISIBLE
+        widgetOverlay.visibility = View.VISIBLE
         loadHomeApps()
     }
 
