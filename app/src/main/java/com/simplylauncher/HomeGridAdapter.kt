@@ -12,7 +12,7 @@ import androidx.recyclerview.widget.RecyclerView
 class HomeGridAdapter(
     private val onClick: (HomeSlot) -> Unit,
     private val onLongPress: (HomeSlot, View) -> Unit,
-    private val onEmptyCellClick: () -> Unit
+    private val onEmptyCellLongPress: (View) -> Unit
 ) : ListAdapter<HomeSlot, HomeGridAdapter.SlotViewHolder>(DiffCallback()) {
 
     private var cellHeight: Int = 0
@@ -52,6 +52,10 @@ class HomeGridAdapter(
         private val label: TextView = itemView.findViewById(R.id.appLabel)
 
         fun bind(slot: HomeSlot) {
+            val ctx = itemView.context
+            val density = ctx.resources.displayMetrics.density
+
+            // altezza cella
             if (cellHeight > 0) {
                 val lp = itemView.layoutParams
                 if (lp.height != cellHeight) {
@@ -60,7 +64,29 @@ class HomeGridAdapter(
                 }
             }
 
-            val app = AppCache.get(itemView.context, slot.packageName)
+            // adatta icona e label in base all'altezza disponibile
+            val cellHeightDp = if (cellHeight > 0) (cellHeight / density).toInt() else 80
+
+            val iconSizeDp = when {
+                cellHeightDp < 65 -> 36
+                cellHeightDp < 80 -> 44
+                else -> 57
+            }
+            val labelSizeSp = when {
+                cellHeightDp < 65 -> 0f // nascosta
+                cellHeightDp < 80 -> 9f
+                else -> 11f
+            }
+            val labelVisibility = if (labelSizeSp == 0f) View.GONE else View.VISIBLE
+
+            icon.layoutParams = icon.layoutParams.apply {
+                width = (iconSizeDp * density).toInt()
+                height = (iconSizeDp * density).toInt()
+            }
+            label.textSize = labelSizeSp
+            label.visibility = labelVisibility
+
+            val app = AppCache.get(ctx, slot.packageName)
             if (app != null) {
                 icon.setImageDrawable(app.icon)
                 label.text = app.label
@@ -71,12 +97,15 @@ class HomeGridAdapter(
                     true
                 }
             } else {
-                // cella vuota: visibile ma trasparente, cliccabile per aprire il popup
+                // cella vuota
                 icon.setImageDrawable(null)
                 label.text = ""
                 itemView.visibility = View.VISIBLE
-                itemView.setOnClickListener { onEmptyCellClick() }
-                itemView.setOnLongClickListener(null)
+                itemView.setOnClickListener(null)
+                itemView.setOnLongClickListener { view ->
+                    onEmptyCellLongPress(view)
+                    true
+                }
             }
         }
     }
