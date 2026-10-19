@@ -149,6 +149,57 @@ class HomeActivity : AppCompatActivity() {
         drawerOverlay.setOnDragListener { _, event ->
             dragController.handleDrawerDragEvent(event)
         }
+
+        // listener sul CONTAINER della dock: se rilasci in un punto
+        // che non è nessuno slot (es. tra due slot o sul drawer button),
+        // trova lo slot più vicino e ci droppa
+        dockLayout.setOnDragListener { _, event ->
+            when (event.action) {
+                DragEvent.ACTION_DRAG_STARTED ->
+                    return@setOnDragListener event.clipDescription
+                        .hasMimeType(android.content.ClipDescription.MIMETYPE_TEXT_PLAIN)
+
+                DragEvent.ACTION_DROP -> {
+                    val pkg = event.clipData.getItemAt(0).text.toString()
+                    val source = event.clipData.description.label?.toString() ?: ""
+
+                    // trova slot più vicino
+                    var closestIndex = 0
+                    var closestDist = Float.MAX_VALUE
+                    val dockLoc = IntArray(2)
+                    dockLayout.getLocationOnScreen(dockLoc)
+                    val dropScreenX = dockLoc[0] + event.x
+                    val dropScreenY = dockLoc[1] + event.y
+
+                    dockSlots.forEachIndexed { index, slot ->
+                        val loc = IntArray(2)
+                        slot.getLocationOnScreen(loc)
+                        val cx = loc[0] + slot.width / 2f
+                        val cy = loc[1] + slot.height / 2f
+                        val dist = Math.hypot(
+                            (dropScreenX - cx).toDouble(),
+                            (dropScreenY - cy).toDouble()
+                        ).toFloat()
+                        if (dist < closestDist) {
+                            closestDist = dist
+                            closestIndex = index
+                        }
+                    }
+
+                    lifecycleScope.launch {
+                        if (source == DragController.SOURCE_DOCK) {
+                            dockController.swapDockSlots(pkg, closestIndex)
+                        } else {
+                            dockController.addToDockAtPublic(pkg, closestIndex)
+                        }
+                    }
+                    return@setOnDragListener true
+                }
+
+                DragEvent.ACTION_DRAG_ENDED -> return@setOnDragListener true
+                else -> return@setOnDragListener false
+            }
+        }
     }
 
     private fun setupDockController() {
@@ -251,7 +302,7 @@ class HomeActivity : AppCompatActivity() {
                     val homeSlots = Prefs.homeSlotsFlow(this@HomeActivity).first()
                     val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
                     Prefs.setHomeSlots(this@HomeActivity, homeSlots.filter { it.packageName != app.packageName })
-                    Prefs.setDockItems(this@HomeActivity, dockItems - app.packageName)
+                    Prefs.setDockItems(this@HomeActivity, dockItems.map { if (it == app.packageName) "" else it })
                     loadHomeApps()
                     dockController.refresh()
                 }
@@ -293,24 +344,16 @@ class HomeActivity : AppCompatActivity() {
     }
 
     fun onDragFromDrawerStarted() {
-        // nascondi il cassetto rapidamente e mostra la home
-        drawerOverlay.animate()
-            .alpha(0f)
-            .setDuration(200)
-            .withEndAction {
-                drawerOverlay.visibility = View.GONE
-                drawerOverlay.alpha = 1f
-                drawerOpen = false
-                homeRecyclerView.visibility = View.VISIBLE
-                dockLayout.visibility = View.VISIBLE
-                loadHomeApps()
-            }
-            .start()
+        // nascondi SUBITO l'overlay, non aspettare l'animazione
+        drawerOverlay.visibility = View.GONE
+        drawerOverlay.alpha = 1f
+        drawerOpen = false
+        homeRecyclerView.visibility = View.VISIBLE
+        dockLayout.visibility = View.VISIBLE
+        loadHomeApps()
     }
 
     fun onDragFromDrawerEnded() {
-        // se il cassetto era stato chiuso per il drag, resta chiuso
-        // se il drag è fallito e l'app non è stata droppata, riapri? no, per ora no
         if (!drawerOpen) {
             drawerOverlay.alpha = 1f
         }
@@ -340,31 +383,43 @@ class HomeActivity : AppCompatActivity() {
         if (targetPos !in currentList.indices) return false
 
         val sourceIndex = currentList.indexOfFirst { it.packageName == pkg }
-        if (sourceIndex == -1) return false
-
-        val sourceSlot = currentList[sourceIndex]
         val targetSlot = currentList[targetPos]
 
-        // aggiorna IMMEDIATAMENTE la lista visiva
-        currentList[sourceIndex] = HomeSlot(targetSlot.packageName, sourceSlot.row, sourceSlot.col)
-        currentList[targetPos] = HomeSlot(pkg, targetSlot.row, targetSlot.col)
-        homeAdapter.submitList(currentList)
+        if (sourceIndex == -1) {
+            // app che viene da FUORI (dock o drawer): aggiungila nella cella target
+            currentList[targetPos] = HomeSlot(pkg, targetSlot.row, targetSlot.col)
+            homeAdapter.submitList(currentList)
 
-        // persisti in background
-        lifecycleScope.launch {
-            val slots = Prefs.homeSlotsFlow(this@HomeActivity).first().toMutableList()
-            slots.removeAll { it.packageName == pkg }
-            slots.removeAll { it.row == targetSlot.row && it.col == targetSlot.col }
-            slots.add(HomeSlot(pkg, targetSlot.row, targetSlot.col))
-            if (sourceSlot.packageName.isNotBlank()) {
-                slots.add(HomeSlot(sourceSlot.packageName, sourceSlot.row, sourceSlot.col))
+            lifecycleScope.launch {
+                val slots = Prefs.homeSlotsFlow(this@HomeActivity).first().toMutableList()
+                slots.removeAll { it.row == targetSlot.row && it.col == targetSlot.col }
+                slots.removeAll { it.packageName == pkg }
+                slots.add(HomeSlot(pkg, targetSlot.row, targetSlot.col))
+                Prefs.setHomeSlots(this@HomeActivity, slots)
+
+                // rimuovi dalla dock se presente
+                val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
+                if (dockItems.contains(pkg)) {
+                    Prefs.setDockItems(this@HomeActivity, dockItems.map { if (it == pkg) "" else it })
+                    dockController.refresh()
+                }
             }
-            Prefs.setHomeSlots(this@HomeActivity, slots)
+        } else {
+            // app che viene dalla HOME: swap
+            val sourceSlot = currentList[sourceIndex]
+            currentList[sourceIndex] = HomeSlot(targetSlot.packageName, sourceSlot.row, sourceSlot.col)
+            currentList[targetPos] = HomeSlot(pkg, targetSlot.row, targetSlot.col)
+            homeAdapter.submitList(currentList)
 
-            val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
-            if (dockItems.contains(pkg)) {
-                Prefs.setDockItems(this@HomeActivity, dockItems - pkg)
-                dockController.refresh()
+            lifecycleScope.launch {
+                val slots = Prefs.homeSlotsFlow(this@HomeActivity).first().toMutableList()
+                slots.removeAll { it.packageName == pkg }
+                slots.removeAll { it.row == targetSlot.row && it.col == targetSlot.col }
+                slots.add(HomeSlot(pkg, targetSlot.row, targetSlot.col))
+                if (sourceSlot.packageName.isNotBlank()) {
+                    slots.add(HomeSlot(sourceSlot.packageName, sourceSlot.row, sourceSlot.col))
+                }
+                Prefs.setHomeSlots(this@HomeActivity, slots)
             }
         }
         return true
@@ -375,7 +430,7 @@ class HomeActivity : AppCompatActivity() {
             val slots = Prefs.homeSlotsFlow(this@HomeActivity).first()
             Prefs.setHomeSlots(this@HomeActivity, slots.filter { it.packageName != pkg })
             val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
-            Prefs.setDockItems(this@HomeActivity, dockItems - pkg)
+            Prefs.setDockItems(this@HomeActivity, dockItems.map { if (it == pkg) "" else it })
             loadHomeApps()
             dockController.refresh()
         }
