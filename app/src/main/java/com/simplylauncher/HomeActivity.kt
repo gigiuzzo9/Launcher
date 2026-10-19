@@ -118,9 +118,18 @@ class HomeActivity : AppCompatActivity() {
             RECEIVER_NOT_EXPORTED
         )
 
-        // padding bottom dinamico in base all'altezza reale della dock
+        // al primo layout: calcola cellHeight e padding dock
+        homeRecyclerView.post {
+            updateRecyclerPadding()
+            recalculateCellHeight()
+        }
         dockLayout.post { updateRecyclerPadding() }
-        homeRecyclerView.post { updateRecyclerPadding() }
+
+        // quando il RecyclerView cambia dimensione (rotazione, resize), ricalcola
+        homeRecyclerView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            updateRecyclerPadding()
+            recalculateCellHeight()
+        }
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
@@ -398,9 +407,14 @@ class HomeActivity : AppCompatActivity() {
         val targetPos = if (child != null) {
             homeRecyclerView.getChildAdapterPosition(child)
         } else {
+            // stima posizione usando cellHeight reale
+            val cellH = if (homeAdapter.getCellHeightSafe() > 0)
+                homeAdapter.getCellHeightSafe()
+            else (homeRecyclerView.height - homeRecyclerView.paddingTop - homeRecyclerView.paddingBottom) / currentRows
+
             val cellW = homeRecyclerView.width / cols.toFloat()
             val col = (x / cellW).toInt().coerceIn(0, cols - 1)
-            val row = (y / cellW).toInt()
+            val row = (y / cellH).toInt().coerceIn(0, currentRows - 1)
             row * cols + col
         }
 
@@ -476,7 +490,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // GRIGLIA: solo padding bottom dinamico (NON altezza celle)
+    // GRIGLIA ADATTIVA
     // ─────────────────────────────────────────────────────────────
 
     private fun updateRecyclerPadding() {
@@ -492,6 +506,25 @@ class HomeActivity : AppCompatActivity() {
                 homeRecyclerView.paddingRight,
                 dockHeight
             )
+        }
+    }
+
+    /**
+     * Calcola cellHeight in base allo spazio disponibile e alle righe scelte,
+     * poi lo passa all'adapter.
+     */
+    private fun recalculateCellHeight() {
+        if (homeRecyclerView.height == 0 || currentRows <= 0) return
+
+        val availableHeight = homeRecyclerView.height -
+                homeRecyclerView.paddingTop -
+                homeRecyclerView.paddingBottom
+
+        if (availableHeight <= 0) return
+
+        val cellHeight = availableHeight / currentRows
+        if (cellHeight > 0) {
+            homeAdapter.setCellHeight(cellHeight)
         }
     }
 
@@ -519,7 +552,9 @@ class HomeActivity : AppCompatActivity() {
                 slots.firstOrNull { it.row == row && it.col == col }
                     ?: HomeSlot("", row, col)
             }
-            homeAdapter.submitList(fullList)
+            homeAdapter.submitList(fullList) {
+                homeRecyclerView.post { recalculateCellHeight() }
+            }
 
             if (!drawerOpen) {
                 if (slots.isEmpty()) {
@@ -599,7 +634,10 @@ class HomeActivity : AppCompatActivity() {
             loadHomeApps()
             dockController.refresh()
             loadDrawerApps()
-            homeRecyclerView.post { updateRecyclerPadding() }
+            homeRecyclerView.post {
+                updateRecyclerPadding()
+                recalculateCellHeight()
+            }
         }
     }
 
