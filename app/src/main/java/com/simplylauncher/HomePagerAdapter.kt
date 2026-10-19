@@ -10,8 +10,6 @@ import androidx.viewpager2.widget.ViewPager2
 /**
  * Adapter per il ViewPager2 della home.
  * Ogni pagina è un RecyclerView con la sua griglia di HomeSlot.
- *
- * Condivide la stessa "cellHeight" tra tutte le pagine.
  */
 class HomePagerAdapter(
     private val viewPager: ViewPager2,
@@ -19,6 +17,7 @@ class HomePagerAdapter(
     private val rows: Int,
     private val onSlotClick: (HomeSlot) -> Unit,
     private val onSlotLongPress: (HomeSlot, View) -> Unit,
+    private val onEmptyCellClick: () -> Unit,
     private val onPageCreated: (page: Int, recycler: RecyclerView) -> Unit
 ) : RecyclerView.Adapter<HomePagerAdapter.PageViewHolder>() {
 
@@ -69,7 +68,7 @@ class HomePagerAdapter(
                 override fun getItemOffsets(
                     outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State
                 ) {
-                    // nessuno spacing extra, le celle hanno altezza fissa
+                    // nessuno spacing extra
                 }
             })
         }
@@ -82,7 +81,8 @@ class HomePagerAdapter(
         if (holder.recycler.adapter == null) {
             val adapter = HomeGridAdapter(
                 onClick = { slot -> onSlotClick(slot) },
-                onLongPress = { slot, view -> onSlotLongPress(slot, view) }
+                onLongPress = { slot, view -> onSlotLongPress(slot, view) },
+                onEmptyCellClick = { onEmptyCellClick() }
             )
             holder.recycler.adapter = adapter
             if (cellHeight > 0) adapter.setCellHeight(cellHeight)
@@ -90,7 +90,6 @@ class HomePagerAdapter(
 
         (holder.recycler.adapter as HomeGridAdapter).submitList(items)
 
-        // registra il recycler per questa pagina
         while (recyclers.size <= position) recyclers.add(holder.recycler)
         if (position < recyclers.size) {
             recyclers[position] = holder.recycler
@@ -101,7 +100,6 @@ class HomePagerAdapter(
 
     override fun onViewRecycled(holder: PageViewHolder) {
         super.onViewRecycled(holder)
-        // rimuove il riferimento ma non lo distrugge
         recyclers.remove(holder.recycler)
     }
 
