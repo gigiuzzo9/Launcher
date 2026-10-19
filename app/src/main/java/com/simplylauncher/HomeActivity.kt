@@ -125,6 +125,13 @@ class HomeActivity : AppCompatActivity() {
             IntentFilter("com.simplylauncher.RELOAD"),
             RECEIVER_NOT_EXPORTED
         )
+
+        homeViewPager.post { recalculateCellHeight() }
+        dockLayout.post { recalculateCellHeight() }
+
+        homeViewPager.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            recalculateCellHeight()
+        }
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
@@ -166,6 +173,7 @@ class HomeActivity : AppCompatActivity() {
         homeViewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
                 pageIndicator.setCurrentPage(position)
+                homeViewPager.post { recalculateCellHeight() }
             }
         })
     }
@@ -179,7 +187,6 @@ class HomeActivity : AppCompatActivity() {
             onDropOnDrawer = { pkg -> handleDropOnDrawer(pkg) }
         )
 
-        // listener drop sul ViewPager (per swap tra pagine - per ora stesso comportamento)
         homeViewPager.setOnDragListener { _, event ->
             dragController.handleHomeDragEvent(event)
         }
@@ -330,6 +337,7 @@ class HomeActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 currentPageCount += 1
                 Prefs.setPageCount(this@HomeActivity, currentPageCount)
+                pageIndicator.setPageCount(currentPageCount)
                 rebuildPagerAdapter()
                 loadHomeApps()
             }
@@ -345,21 +353,20 @@ class HomeActivity : AppCompatActivity() {
         homePopupMenu.onRemovePage = {
             if (currentPageCount > 1) {
                 val currentPageIndex = homeViewPager.currentItem
-                // non rimuovere la pagina se ci sono icone (per ora sicurezza)
                 lifecycleScope.launch {
                     val slots = Prefs.homeSlotsFlow(this@HomeActivity).first()
                     val itemsOnPage = slots.count { it.page == currentPageIndex }
                     if (itemsOnPage > 0) {
-                        // non rimuovere, sposta prima le icone
                         return@launch
                     }
-                    // rimuovi la pagina e shift delle successive
                     val newSlots = slots.map {
                         if (it.page > currentPageIndex) it.copy(page = it.page - 1) else it
                     }
                     Prefs.setHomeSlots(this@HomeActivity, newSlots)
                     currentPageCount -= 1
+                    if (currentPageCount < 1) currentPageCount = 1
                     Prefs.setPageCount(this@HomeActivity, currentPageCount)
+                    pageIndicator.setPageCount(currentPageCount)
                     rebuildPagerAdapter()
                     loadHomeApps()
                 }
@@ -396,6 +403,9 @@ class HomeActivity : AppCompatActivity() {
                     dragController.onLongPress(app, view, DragController.SOURCE_HOME, false)
                 }
             },
+            onEmptyCellClick = {
+                showHomePopup()
+            },
             onPageCreated = { page, recycler ->
                 setupRecyclerTouchHelper(recycler)
             }
@@ -403,13 +413,10 @@ class HomeActivity : AppCompatActivity() {
         homeViewPager.adapter = homePagerAdapter
         pageIndicator.setPageCount(currentPageCount)
         pageIndicator.setCurrentPage(homeViewPager.currentItem.coerceIn(0, currentPageCount - 1))
-
-        // setup drag listener + click listener sul ViewPager per popup punto vuoto
-        setupViewPagerTouchListener()
+        homeViewPager.post { recalculateCellHeight() }
     }
 
     private fun setupRecyclerTouchHelper(recycler: RecyclerView) {
-        // aggiunge ItemTouchHelper una sola volta per recycler
         if (recycler.tag != null) return
         recycler.tag = "touch_helper_attached"
 
@@ -434,14 +441,6 @@ class HomeActivity : AppCompatActivity() {
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) = Unit
         })
         helper.attachToRecyclerView(recycler)
-    }
-
-    private fun setupViewPagerTouchListener() {
-        // listener click su ViewPager per aprire popup su punto vuoto
-        // NOTA: il click su icona è gestito da HomeGridAdapter
-        homeViewPager.setOnClickListener {
-            showHomePopup()
-        }
     }
 
     private fun showHomePopup() {
@@ -471,6 +470,7 @@ class HomeActivity : AppCompatActivity() {
         drawerOverlay.alpha = 1f
         drawerOpen = false
         homeViewPager.visibility = View.VISIBLE
+        pageIndicator.visibility = View.VISIBLE
         dockLayout.visibility = View.VISIBLE
         loadHomeApps()
     }
@@ -478,6 +478,27 @@ class HomeActivity : AppCompatActivity() {
     fun onDragFromDrawerEnded() {
         if (!drawerOpen) {
             drawerOverlay.alpha = 1f
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // GRIGLIA ADATTIVA
+    // ─────────────────────────────────────────────────────────────
+
+    private fun recalculateCellHeight() {
+        if (!::homePagerAdapter.isInitialized) return
+        if (homeViewPager.height == 0 || currentRows <= 0) return
+
+        // altezza del recycler della pagina corrente
+        val recycler = homePagerAdapter.getRecycler(homeViewPager.currentItem) ?: return
+        if (recycler.height == 0) return
+
+        val availableHeight = recycler.height - recycler.paddingTop - recycler.paddingBottom
+        if (availableHeight <= 0) return
+
+        val cellHeight = availableHeight / currentRows
+        if (cellHeight > 0) {
+            homePagerAdapter.setCellHeight(cellHeight)
         }
     }
 
@@ -502,7 +523,6 @@ class HomeActivity : AppCompatActivity() {
         }
         val cols = lm.spanCount
 
-        // coordinate relative al ViewPager → relative al RecyclerView della pagina
         val pagerLoc = IntArray(2)
         homeViewPager.getLocationOnScreen(pagerLoc)
         val recyclerLoc = IntArray(2)
@@ -514,9 +534,7 @@ class HomeActivity : AppCompatActivity() {
         val targetPos = if (child != null) {
             recycler.getChildAdapterPosition(child)
         } else {
-            val cellH = if (homePagerAdapter.getPageItems(pageIndex).isNotEmpty())
-                (recycler.height - recycler.paddingTop - recycler.paddingBottom) / currentRows
-            else (recycler.height - recycler.paddingTop - recycler.paddingBottom) / currentRows
+            val cellH = (recycler.height - recycler.paddingTop - recycler.paddingBottom) / currentRows
             val cellW = recycler.width / cols.toFloat()
             val col = (rvX / cellW).toInt().coerceIn(0, cols - 1)
             val row = (rvY / cellH).toInt().coerceIn(0, currentRows - 1)
@@ -606,7 +624,7 @@ class HomeActivity : AppCompatActivity() {
     private fun clampSlotsToGrid(slots: List<HomeSlot>): List<HomeSlot> {
         if (slots.isEmpty()) return slots
         val out = mutableListOf<HomeSlot>()
-        val occupied = mutableSetOf<Triple<Int, Int, Int>>() // page, row, col
+        val occupied = mutableSetOf<Triple<Int, Int, Int>>()
 
         slots.forEach { s ->
             val p = s.page.coerceAtLeast(0)
@@ -619,7 +637,6 @@ class HomeActivity : AppCompatActivity() {
             }
         }
 
-        // second pass: place colliding items in free cells
         slots.forEach { s ->
             if (out.none { it.packageName == s.packageName }) {
                 var placed = false
@@ -647,7 +664,6 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val rawSlots = Prefs.homeSlotsFlow(this@HomeActivity).first()
 
-            // calcola pageCount effettivo
             val maxPage = rawSlots.maxOfOrNull { it.page } ?: 0
             val effectivePageCount = maxOf(currentPageCount, maxPage + 1)
             if (effectivePageCount != currentPageCount) {
@@ -664,7 +680,6 @@ class HomeActivity : AppCompatActivity() {
             val allApps = AppRepository.loadInstalledAppsWithCustomLabels(this@HomeActivity)
             HomeGridAdapter.AppCache.putAll(allApps)
 
-            // costruisce le pagine
             val pages = (0 until currentPageCount).map { page ->
                 val minSlots = currentCols * currentRows
                 val pageSlots = slots.filter { it.page == page }
@@ -689,6 +704,8 @@ class HomeActivity : AppCompatActivity() {
                     emptyMessage.visibility = View.GONE
                 }
             }
+
+            homeViewPager.post { recalculateCellHeight() }
         }
     }
 
