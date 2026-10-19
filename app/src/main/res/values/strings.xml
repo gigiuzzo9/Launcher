@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name">Simple Launcher</string>
 
-    <!-- Impostazioni -->
     <string name="settings_title">Impostazioni</string>
     <string name="settings_transparency">Trasparenza: %d%%</string>
     <string name="settings_transparency_default">Trasparenza: 90%</string>
@@ -9,17 +8,15 @@
     <string name="settings_rows">Righe</string>
     <string name="settings_background_color">Colore sfondo</string>
 
-    <!-- Menu contestuale -->
     <string name="menu_uninstall">Disinstalla</string>
     <string name="menu_rename">Rinomina</string>
     <string name="menu_remove">Rimuovi</string>
+    <string name="menu_move">Sposta</string>
 
-    <!-- Dialog rinomina -->
     <string name="rename_title">Rinomina app</string>
     <string name="rename_hint">Nuovo nome</string>
     <string name="rename_confirm">Conferma</string>
     <string name="rename_cancel">Annulla</string>
 
-    <!-- Home -->
     <string name="home_empty_message">Apri il cassetto e aggiungi le tue app</string>
 </resources>
