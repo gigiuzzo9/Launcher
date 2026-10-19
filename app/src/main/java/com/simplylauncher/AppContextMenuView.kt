@@ -6,24 +6,21 @@ import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
 import android.widget.LinearLayout
+import android.widget.PopupWindow
 import android.widget.TextView
 
-class AppContextMenuView(context: Context) : LinearLayout(context) {
+class AppContextMenuView(private val ctx: Context) {
 
     var onUninstall: (() -> Unit)? = null
     var onRename: (() -> Unit)? = null
     var onRemove: (() -> Unit)? = null
     var onDismiss: (() -> Unit)? = null
 
-    private val menuContainer: LinearLayout
+    private var popupWindow: PopupWindow? = null
 
-    init {
-        orientation = VERTICAL
-        gravity = Gravity.CENTER
-        visibility = GONE
-
-        menuContainer = LinearLayout(context).apply {
-            orientation = VERTICAL
+    fun show(anchor: View) {
+        val container = LinearLayout(ctx).apply {
+            orientation = LinearLayout.VERTICAL
             setPadding(24, 16, 24, 16)
 
             val drawable = GradientDrawable().apply {
@@ -33,28 +30,40 @@ class AppContextMenuView(context: Context) : LinearLayout(context) {
             background = drawable
         }
 
-        val uninstallItem = createMenuItem(context.getString(R.string.menu_uninstall)) {
+        val uninstallItem = createMenuItem(ctx.getString(R.string.menu_uninstall)) {
             onUninstall?.invoke()
-            hide()
+            dismiss()
         }
-        val renameItem = createMenuItem(context.getString(R.string.menu_rename)) {
+        val renameItem = createMenuItem(ctx.getString(R.string.menu_rename)) {
             onRename?.invoke()
-            hide()
+            dismiss()
         }
-        val removeItem = createMenuItem(context.getString(R.string.menu_remove)) {
+        val removeItem = createMenuItem(ctx.getString(R.string.menu_remove)) {
             onRemove?.invoke()
-            hide()
+            dismiss()
         }
 
-        menuContainer.addView(uninstallItem)
-        menuContainer.addView(renameItem)
-        menuContainer.addView(removeItem)
+        container.addView(uninstallItem)
+        container.addView(renameItem)
+        container.addView(removeItem)
 
-        addView(menuContainer)
+        popupWindow = PopupWindow(
+            container,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            true
+        ).apply {
+            isOutsideTouchable = true
+            isFocusable = true
+            setOnDismissListener {
+                onDismiss?.invoke()
+            }
+            showAtLocation(anchor, Gravity.CENTER, 0, 0)
+        }
     }
 
     private fun createMenuItem(text: String, onClick: () -> Unit): TextView {
-        return TextView(context).apply {
+        return TextView(ctx).apply {
             this.text = text
             setTextColor(Color.WHITE)
             textSize = 16f
@@ -63,30 +72,10 @@ class AppContextMenuView(context: Context) : LinearLayout(context) {
         }
     }
 
-    fun show(x: Float, y: Float) {
-        visibility = VISIBLE
-        bringToFront()
-
-        post {
-            val screenWidth = resources.displayMetrics.widthPixels
-            val screenHeight = resources.displayMetrics.heightPixels
-            val menuWidth = menuContainer.width
-            val menuHeight = menuContainer.height
-
-            if (menuWidth == 0 || menuHeight == 0) return@post
-
-            val finalX = x.coerceIn(0f, (screenWidth - menuWidth).toFloat())
-            val finalY = y.coerceIn(0f, (screenHeight - menuHeight).toFloat())
-
-            menuContainer.x = finalX
-            menuContainer.y = finalY
-        }
+    fun dismiss() {
+        popupWindow?.dismiss()
+        popupWindow = null
     }
 
-    fun hide() {
-        visibility = GONE
-        onDismiss?.invoke()
-    }
-
-    fun isShowing(): Boolean = visibility == VISIBLE
+    fun isShowing(): Boolean = popupWindow?.isShowing == true
 }
