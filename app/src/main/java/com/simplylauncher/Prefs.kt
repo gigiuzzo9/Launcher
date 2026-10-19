@@ -19,6 +19,7 @@ object Prefs {
     private val KEY_ROWS = intPreferencesKey("grid_rows")
     private val KEY_HOME_ITEMS = stringPreferencesKey("home_items")
     private val KEY_HOME_SLOTS = stringPreferencesKey("home_slots")
+    private val KEY_PAGE_COUNT = intPreferencesKey("page_count")
     private val KEY_DOCK_ITEMS = stringPreferencesKey("dock_items")
     private val KEY_CUSTOM_LABELS = stringPreferencesKey("custom_labels")
 
@@ -34,6 +35,26 @@ object Prefs {
     fun rowsFlow(context: Context): Flow<Int> =
         context.dataStore.data.map { it[KEY_ROWS] ?: 6 }
 
+    /**
+     * Numero di pagine della home. Minimo 1.
+     * Se non è mai stato salvato, lo deduce dagli slot (max page + 1).
+     */
+    fun pageCountFlow(context: Context): Flow<Int> =
+        context.dataStore.data.map { prefs ->
+            val explicit = prefs[KEY_PAGE_COUNT]
+            if (explicit != null && explicit > 0) {
+                explicit
+            } else {
+                val rawSlots = prefs[KEY_HOME_SLOTS]
+                if (rawSlots != null) {
+                    val maxPage = HomeSlot.stringToList(rawSlots).maxOfOrNull { it.page } ?: 0
+                    maxPage + 1
+                } else {
+                    1
+                }
+            }
+        }
+
     fun homeSlotsFlow(context: Context): Flow<List<HomeSlot>> =
         context.dataStore.data.map { prefs ->
             val raw = prefs[KEY_HOME_SLOTS]
@@ -47,10 +68,6 @@ object Prefs {
             }
         }
 
-    /**
-     * Legge il dock preservando le posizioni vuote (placeholder).
-     * Una stringa vuota "" significa slot vuoto in quella posizione.
-     */
     fun dockItemsFlow(context: Context): Flow<List<String>> =
         context.dataStore.data.map { prefs ->
             val raw = prefs[KEY_DOCK_ITEMS]
@@ -84,10 +101,17 @@ object Prefs {
         context.dataStore.edit { it[KEY_ROWS] = rows }
     }
 
+    suspend fun setPageCount(context: Context, count: Int) {
+        context.dataStore.edit { it[KEY_PAGE_COUNT] = count.coerceAtLeast(1) }
+    }
+
     suspend fun setHomeSlots(context: Context, slots: List<HomeSlot>) {
         context.dataStore.edit {
             it[KEY_HOME_SLOTS] = HomeSlot.listToString(slots)
             it.remove(KEY_HOME_ITEMS)
+            // aggiorna anche il pageCount dedotto
+            val maxPage = slots.maxOfOrNull { s -> s.page } ?: 0
+            it[KEY_PAGE_COUNT] = maxPage + 1
         }
     }
 
@@ -97,12 +121,7 @@ object Prefs {
         setHomeSlots(context, slots)
     }
 
-    /**
-     * Salva il dock preservando i placeholder vuoti.
-     * Se la lista è più corta di 4, la riempie fino a 4.
-     */
     suspend fun setDockItems(context: Context, items: List<String>) {
-        // normalizza a 4 slot preservando i vuoti
         val normalized = items.toMutableList()
         while (normalized.size < 4) normalized.add("")
         context.dataStore.edit { it[KEY_DOCK_ITEMS] = normalized.joinToString(",") }
