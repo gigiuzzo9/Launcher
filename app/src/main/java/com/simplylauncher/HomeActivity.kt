@@ -321,7 +321,8 @@ class HomeActivity : AppCompatActivity() {
 
             widgets.filter { it.page == homeViewPager.currentItem }.forEach { slot ->
                 val info = appWidgetManager.getAppWidgetInfo(slot.appWidgetId) ?: return@forEach
-                val hostView = appWidgetHost.createView(this@HomeActivity, slot.appWidgetId, info) as AppWidgetHostView
+                // Fossify usa baseContext per evitare errori con i temi
+                val hostView = appWidgetHost.createView(baseContext, slot.appWidgetId, info) as AppWidgetHostView
                 hostView.setAppWidget(slot.appWidgetId, info)
 
                 val lp = FrameLayout.LayoutParams(
@@ -871,15 +872,15 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun applyDrawerBackground() {
-    lifecycleScope.launch {
-        val color = Prefs.colorFlow(this@HomeActivity).first()
-        val alpha = Prefs.alphaFlow(this@HomeActivity).first()
-        currentDrawerColor = color
-        drawerContainer.setCardBackgroundColor(
-            Color.argb((alpha * 255).toInt(), Color.red(color), Color.green(color), Color.blue(color))
-        )
-     }
-   }
+        lifecycleScope.launch {
+            val color = Prefs.colorFlow(this@HomeActivity).first()
+            val alpha = Prefs.alphaFlow(this@HomeActivity).first()
+            currentDrawerColor = color
+            drawerContainer.setCardBackgroundColor(
+                Color.argb((alpha * 255).toInt(), Color.red(color), Color.green(color), Color.blue(color))
+            )
+        }
+    }
 
     override fun onResume() {
         super.onResume()
