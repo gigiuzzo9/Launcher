@@ -5,6 +5,7 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
@@ -79,16 +80,17 @@ class SettingsActivity : AppCompatActivity() {
         val margin = (12 * resources.displayMetrics.density).toInt()
 
         paletteColors.forEach { color ->
-            val container = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
+            val container = FrameLayout(this).apply {
                 layoutParams = LinearLayout.LayoutParams(size, size).apply {
                     marginEnd = margin
                 }
             }
 
+            // Cerchio colorato
             val circle = View(this).apply {
-                layoutParams = LinearLayout.LayoutParams(size, size)
+                layoutParams = FrameLayout.LayoutParams(size, size).apply {
+                    gravity = Gravity.CENTER
+                }
                 val drawable = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
                     setColor(color)
@@ -96,13 +98,17 @@ class SettingsActivity : AppCompatActivity() {
                 background = drawable
             }
 
+            // Spunta centrata SOPRA il cerchio
             val check = TextView(this).apply {
                 text = "✓"
-                textSize = 18f
+                textSize = 20f
                 gravity = Gravity.CENTER
+                // Nera sul bianco, bianca sugli altri
                 setTextColor(if (color == Color.WHITE) Color.BLACK else Color.WHITE)
                 visibility = if (color == selectedColor) View.VISIBLE else View.GONE
-                layoutParams = LinearLayout.LayoutParams(size, size)
+                layoutParams = FrameLayout.LayoutParams(size, size).apply {
+                    gravity = Gravity.CENTER
+                }
             }
 
             container.addView(circle)
