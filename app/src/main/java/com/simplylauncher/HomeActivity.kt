@@ -39,7 +39,8 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var drawerAdapter: AppAdapter
     private var drawerOpen = false
 
-    private var draggedPackage: String? = null
+    private lateinit var contextMenuView: AppContextMenuView
+    private var currentApp: AppInfo? = null
 
     private val reloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -69,16 +70,16 @@ class HomeActivity : AppCompatActivity() {
         )
 
         setupDrawerButton()
+        setupContextMenu()
         applyGridSettings()
 
         adapter = AppAdapter(
             onClick = { app -> AppRepository.launchApp(this, app.packageName) },
-            onLongPress = { app, view -> showContextMenu(app, view) },
-            onStartDrag = { app, view -> startDrag(app, view) }
+            onLongPress = { app, view, x, y -> showContextMenu(app, view, x, y) },
+            onMoveAfterLongPress = { app, view -> startDrag(app, view) }
         )
         homeRecyclerView.adapter = adapter
 
-        // Setup drop target per la home
         homeRecyclerView.setOnDragListener { _, event -> handleDrop(event, isDock = false) }
 
         drawerOverlay = findViewById(R.id.drawerOverlay)
@@ -91,15 +92,13 @@ class HomeActivity : AppCompatActivity() {
                 AppRepository.launchApp(this, app.packageName)
                 closeDrawer()
             },
-            onLongPress = { app, view -> showContextMenu(app, view) },
-            onStartDrag = { app, view -> startDrag(app, view) }
+            onLongPress = { app, view, x, y -> showContextMenu(app, view, x, y) },
+            onMoveAfterLongPress = { app, view -> startDrag(app, view) }
         )
         drawerRecyclerView.adapter = drawerAdapter
 
-        // Setup drop target per il cassetto (per ricevere dalla home)
         drawerRecyclerView.setOnDragListener { _, event -> handleDrop(event, isDock = false) }
 
-        // Setup drop target per il dock
         dockLayout.setOnDragListener { _, event -> handleDrop(event, isDock = true) }
 
         drawerOverlay.setOnClickListener {
@@ -125,15 +124,67 @@ class HomeActivity : AppCompatActivity() {
         )
     }
 
+    private fun setupContextMenu() {
+        contextMenuView = AppContextMenuView(this)
+        val params = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        )
+        addContentView(contextMenuView, params)
+
+        contextMenuView.onUninstall = {
+            currentApp?.let { app ->
+                val intent = Intent(Intent.ACTION_DELETE).apply {
+                    data = android.net.Uri.parse("package:${app.packageName}")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(intent)
+            }
+        }
+
+        contextMenuView.onRename = {
+            currentApp?.let { app ->
+                RenameDialog.show(this, app) {
+                    loadHomeApps()
+                    loadDockApps()
+                    loadDrawerApps()
+                }
+            }
+        }
+
+        contextMenuView.onRemove = {
+            currentApp?.let { app ->
+                lifecycleScope.launch {
+                    val homeItems = Prefs.homeItemsFlow(this@HomeActivity).first()
+                    val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
+                    Prefs.setHomeItems(this@HomeActivity, homeItems - app.packageName)
+                    Prefs.setDockItems(this@HomeActivity, dockItems - app.packageName)
+                    loadHomeApps()
+                    loadDockApps()
+                    loadDrawerApps()
+                }
+            }
+        }
+
+        contextMenuView.onDismiss = {
+            currentApp = null
+        }
+    }
+
+    private fun showContextMenu(app: AppInfo, anchor: View, x: Float, y: Float) {
+        currentApp = app
+        contextMenuView.show(x, y)
+    }
+
     private fun startDrag(app: AppInfo, view: View) {
-        draggedPackage = app.packageName
+        if (contextMenuView.isShowing()) {
+            contextMenuView.hide()
+        }
 
         val clip = ClipData.newPlainText("package", app.packageName)
         val shadow = View.DragShadowBuilder(view)
-
         view.startDragAndDrop(clip, shadow, null, 0)
 
-        // Se il cassetto è aperto, inizia la dissolvenza
         if (drawerOpen) {
             drawerOverlay.animate().alpha(0.3f).setDuration(300).start()
         }
@@ -146,12 +197,10 @@ class HomeActivity : AppCompatActivity() {
             }
             DragEvent.ACTION_DRAG_ENTERED -> {
                 if (isDock) dockLayout.setBackgroundColor(Color.parseColor("#33FFFFFF"))
-                else if (drawerOpen) drawerContainer.setCardBackgroundColor(Color.parseColor("#66000000"))
                 return true
             }
             DragEvent.ACTION_DRAG_EXITED -> {
                 if (isDock) dockLayout.setBackgroundColor(Color.TRANSPARENT)
-                else if (drawerOpen) applyDrawerBackground()
                 return true
             }
             DragEvent.ACTION_DROP -> {
@@ -161,16 +210,12 @@ class HomeActivity : AppCompatActivity() {
                 } else {
                     addToHome(pkg)
                 }
-                // Ripristina alpha
                 drawerOverlay.animate().alpha(1f).setDuration(200).start()
                 return true
             }
             DragEvent.ACTION_DRAG_ENDED -> {
                 if (isDock) dockLayout.setBackgroundColor(Color.TRANSPARENT)
-                else if (drawerOpen) applyDrawerBackground()
-                // Ripristina alpha se il drop è fallito
                 drawerOverlay.animate().alpha(1f).setDuration(200).start()
-                draggedPackage = null
                 return true
             }
         }
@@ -337,42 +382,11 @@ class HomeActivity : AppCompatActivity() {
                         AppRepository.launchApp(this@HomeActivity, app.packageName)
                     }
                     slot.setOnLongClickListener { view ->
-                        showContextMenu(app, view)
+                        showContextMenu(app, view, view.x, view.y)
                         true
                     }
                 }
             }
-        }
-    }
-
-    private fun showContextMenu(app: AppInfo, anchor: View) {
-        lifecycleScope.launch {
-            val homeItems = Prefs.homeItemsFlow(this@HomeActivity).first()
-            val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
-
-            AppContextMenu.show(
-                context = this@HomeActivity,
-                anchor = anchor,
-                app = app,
-                isInHome = homeItems.contains(app.packageName),
-                isInDock = dockItems.contains(app.packageName),
-                onRemove = {
-                    lifecycleScope.launch {
-                        Prefs.setHomeItems(this@HomeActivity, homeItems - app.packageName)
-                        Prefs.setDockItems(this@HomeActivity, dockItems - app.packageName)
-                        loadHomeApps()
-                        loadDockApps()
-                        loadDrawerApps()
-                    }
-                },
-                onRename = {
-                    RenameDialog.show(this@HomeActivity, app) {
-                        loadHomeApps()
-                        loadDockApps()
-                        loadDrawerApps()
-                    }
-                }
-            )
         }
     }
 
