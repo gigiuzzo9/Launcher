@@ -5,6 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.draganddrop.DragStartHelper
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -28,6 +29,7 @@ class AppAdapter(
     inner class AppViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val icon: ImageView = itemView.findViewById(R.id.appIcon)
         private val label: TextView = itemView.findViewById(R.id.appLabel)
+        private var dragHelper: DragStartHelper? = null
 
         fun bind(app: AppInfo) {
             icon.setImageDrawable(app.icon)
@@ -39,18 +41,19 @@ class AppAdapter(
                 true
             }
 
-            // Imposta il listener per il drag nativo
-            itemView.setOnTouchListener { _, event ->
+            // Rimuovi il vecchio helper se esiste
+            dragHelper?.detach()
+
+            // Crea un nuovo helper per questa view
+            dragHelper = DragStartHelper(itemView) { _, _ ->
                 if (onStartDrag != null) {
-                    // Usa DragStartHelper per il drag
-                    val helper = androidx.draganddrop.DragStartHelper(itemView) { _, _ ->
-                        onStartDrag.invoke(this)
-                        true
-                    }
-                    helper.attach()
+                    onStartDrag.invoke(this)
+                    true
+                } else {
+                    false
                 }
-                false
             }
+            dragHelper?.attach()
         }
     }
 
