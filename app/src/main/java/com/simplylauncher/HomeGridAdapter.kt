@@ -12,12 +12,22 @@ import androidx.recyclerview.widget.RecyclerView
 /**
  * Adapter per la griglia della home.
  * Ogni item rappresenta un HomeSlot (posizione fissa row/col).
- * Supporta swap tra celle tramite moveItem().
+ * Supporta altezza cella dinamica (passata da HomeActivity in base alle righe).
  */
 class HomeGridAdapter(
     private val onClick: (HomeSlot) -> Unit,
     private val onLongPress: (HomeSlot, View) -> Unit
 ) : ListAdapter<HomeSlot, HomeGridAdapter.SlotViewHolder>(DiffCallback()) {
+
+    /** Altezza in pixel di ogni cella. 0 = non ancora calcolata. */
+    private var cellHeight: Int = 0
+
+    fun setCellHeight(height: Int) {
+        if (cellHeight != height) {
+            cellHeight = height
+            notifyDataSetChanged()
+        }
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SlotViewHolder {
         val view = LayoutInflater.from(parent.context)
@@ -29,16 +39,11 @@ class HomeGridAdapter(
         holder.bind(getItem(position))
     }
 
-    /**
-     * Scambia due slot (usato da ItemTouchHelper per il riordino).
-     * Ritorna true se lo swap è avvenuto.
-     */
     fun swap(from: Int, to: Int): Boolean {
         val current = currentList.toMutableList()
         if (from !in current.indices || to !in current.indices) return false
         val a = current[from]
         val b = current[to]
-        // scambia le posizioni (row/col) mantenendo i packageName
         current[from] = a.copy(row = b.row, col = b.col)
         current[to] = b.copy(row = a.row, col = a.col)
         submitList(current)
@@ -50,6 +55,15 @@ class HomeGridAdapter(
         private val label: TextView = itemView.findViewById(R.id.appLabel)
 
         fun bind(slot: HomeSlot) {
+            // applica altezza cella se calcolata
+            if (cellHeight > 0) {
+                val lp = itemView.layoutParams
+                if (lp.height != cellHeight) {
+                    lp.height = cellHeight
+                    itemView.layoutParams = lp
+                }
+            }
+
             val app = AppCache.get(itemView.context, slot.packageName)
             if (app != null) {
                 icon.setImageDrawable(app.icon)
@@ -61,7 +75,6 @@ class HomeGridAdapter(
                     true
                 }
             } else {
-                // app non installata: cella vuota
                 icon.setImageDrawable(null)
                 label.text = ""
                 itemView.visibility = View.INVISIBLE
@@ -81,10 +94,6 @@ class HomeGridAdapter(
         }
     }
 
-    /**
-     * Cache leggera per evitare di risolvere icone ad ogni bind.
-     * Viene popolata da HomeActivity prima del submitList.
-     */
     object AppCache {
         private val map = mutableMapOf<String, AppInfo>()
         fun putAll(apps: List<AppInfo>) {
