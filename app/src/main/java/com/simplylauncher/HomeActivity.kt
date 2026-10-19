@@ -118,11 +118,6 @@ class HomeActivity : AppCompatActivity() {
         )
     }
 
-    /**
-     * Intercetta TUTTI i touch prima che arrivino ai figli.
-     * Necessario perché i RecyclerView consumano gli eventi MOVE
-     * e il DragController non li vedrebbe altrimenti.
-     */
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         if (::dragController.isInitialized && dragController.onInterceptTouch(ev)) {
             return true
@@ -140,10 +135,7 @@ class HomeActivity : AppCompatActivity() {
             homeRecyclerView = homeRecyclerView,
             drawerOverlay = drawerOverlay,
             onDropOnHome = { pkg, x, y -> handleDropOnHome(pkg, x, y) },
-            onDropOnDrawer = { pkg -> handleDropOnDrawer(pkg) },
-            onLongPressWithoutMove = { app, anchor, fromDrawer ->
-                showContextMenu(app, anchor, showRemove = !fromDrawer, fromDrawer = fromDrawer)
-            }
+            onDropOnDrawer = { pkg -> handleDropOnDrawer(pkg) }
         )
 
         homeRecyclerView.setOnDragListener { _, event ->
@@ -272,13 +264,6 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun showContextMenu(app: AppInfo, anchor: View, showRemove: Boolean, fromDrawer: Boolean) {
-        currentApp = app
-        currentAnchor = anchor
-        currentFromDrawer = fromDrawer
-        contextMenuView.show(anchor, showRemove)
-    }
-
     private fun setupDrawerButton() {
         dockDrawerButton.removeAllViews()
         val imageView = ImageView(this).apply {
@@ -288,6 +273,47 @@ class HomeActivity : AppCompatActivity() {
         }
         dockDrawerButton.addView(imageView)
         dockDrawerButton.setOnClickListener { openDrawer() }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // METODI CHIAMATI DA DragController
+    // ─────────────────────────────────────────────────────────────
+
+    fun showContextMenuForDrag(app: AppInfo, anchor: View, fromDrawer: Boolean) {
+        currentApp = app
+        currentAnchor = anchor
+        currentFromDrawer = fromDrawer
+        contextMenuView.show(anchor, showRemove = !fromDrawer)
+    }
+
+    fun dismissDragPopup() {
+        contextMenuView.dismiss()
+        currentApp = null
+        currentAnchor = null
+    }
+
+    fun onDragFromDrawerStarted() {
+        // nascondi il cassetto rapidamente e mostra la home
+        drawerOverlay.animate()
+            .alpha(0f)
+            .setDuration(200)
+            .withEndAction {
+                drawerOverlay.visibility = View.GONE
+                drawerOverlay.alpha = 1f
+                drawerOpen = false
+                homeRecyclerView.visibility = View.VISIBLE
+                dockLayout.visibility = View.VISIBLE
+                loadHomeApps()
+            }
+            .start()
+    }
+
+    fun onDragFromDrawerEnded() {
+        // se il cassetto era stato chiuso per il drag, resta chiuso
+        // se il drag è fallito e l'app non è stata droppata, riapri? no, per ora no
+        if (!drawerOpen) {
+            drawerOverlay.alpha = 1f
+        }
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -310,22 +336,29 @@ class HomeActivity : AppCompatActivity() {
 
         if (targetPos == RecyclerView.NO_POSITION) return false
 
+        val currentList = homeAdapter.currentList.toMutableList()
+        if (targetPos !in currentList.indices) return false
+
+        val sourceIndex = currentList.indexOfFirst { it.packageName == pkg }
+        if (sourceIndex == -1) return false
+
+        val sourceSlot = currentList[sourceIndex]
+        val targetSlot = currentList[targetPos]
+
+        // aggiorna IMMEDIATAMENTE la lista visiva
+        currentList[sourceIndex] = HomeSlot(targetSlot.packageName, sourceSlot.row, sourceSlot.col)
+        currentList[targetPos] = HomeSlot(pkg, targetSlot.row, targetSlot.col)
+        homeAdapter.submitList(currentList)
+
+        // persisti in background
         lifecycleScope.launch {
             val slots = Prefs.homeSlotsFlow(this@HomeActivity).first().toMutableList()
-            val original = slots.firstOrNull { it.packageName == pkg }
             slots.removeAll { it.packageName == pkg }
-
-            val row = targetPos / cols
-            val col = targetPos % cols
-
-            val occupant = slots.firstOrNull { it.row == row && it.col == col }
-            if (occupant != null && original != null) {
-                slots.removeAll { it.packageName == occupant.packageName }
-                slots.add(HomeSlot(occupant.packageName, original.row, original.col))
+            slots.removeAll { it.row == targetSlot.row && it.col == targetSlot.col }
+            slots.add(HomeSlot(pkg, targetSlot.row, targetSlot.col))
+            if (sourceSlot.packageName.isNotBlank()) {
+                slots.add(HomeSlot(sourceSlot.packageName, sourceSlot.row, sourceSlot.col))
             }
-
-            slots.removeAll { it.row == row && it.col == col }
-            slots.add(HomeSlot(pkg, row, col))
             Prefs.setHomeSlots(this@HomeActivity, slots)
 
             val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
@@ -333,8 +366,6 @@ class HomeActivity : AppCompatActivity() {
                 Prefs.setDockItems(this@HomeActivity, dockItems - pkg)
                 dockController.refresh()
             }
-
-            loadHomeApps()
         }
         return true
     }
