@@ -624,11 +624,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showHomePopup(anchor: View) {
-        homePopupMenu.show(
-            anchor,
-            showRemovePage = currentPageCount > 1,
-            drawerIsWhite = (currentDrawerColor == Color.WHITE)
-        )
+        homePopupMenu.show(anchor, showRemovePage = currentPageCount > 1)
     }
 
     fun showContextMenuForDrag(app: AppInfo, anchor: View, fromDrawer: Boolean) {
@@ -638,7 +634,7 @@ class HomeActivity : AppCompatActivity() {
         contextMenuView.show(
             anchor,
             showRemove = !fromDrawer,
-            drawerIsWhite = (currentDrawerColor == Color.WHITE)
+            drawerIsWhite = fromDrawer && (currentDrawerColor == Color.WHITE)
         )
     }
 
@@ -878,8 +874,7 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val color = Prefs.colorFlow(this@HomeActivity).first()
             val alpha = Prefs.alphaFlow(this@HomeActivity).first()
-            currentDrawerColor = color
-            drawerContainer.setCardBackgroundColor(
+            currentDrawerColor = color            drawerContainer.setCardBackgroundColor(
                 Color.argb((alpha * 255).toInt(), Color.red(color), Color.green(color), Color.blue(color))
             )
         }
