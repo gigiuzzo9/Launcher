@@ -17,8 +17,8 @@ object Prefs {
     private val KEY_ALPHA = floatPreferencesKey("bg_alpha")
     private val KEY_COLS = intPreferencesKey("grid_cols")
     private val KEY_ROWS = intPreferencesKey("grid_rows")
-    private val KEY_HOME_ITEMS = stringPreferencesKey("home_items")        // vecchio formato (migrazione)
-    private val KEY_HOME_SLOTS = stringPreferencesKey("home_slots")        // nuovo formato
+    private val KEY_HOME_ITEMS = stringPreferencesKey("home_items")
+    private val KEY_HOME_SLOTS = stringPreferencesKey("home_slots")
     private val KEY_DOCK_ITEMS = stringPreferencesKey("dock_items")
     private val KEY_CUSTOM_LABELS = stringPreferencesKey("custom_labels")
 
@@ -34,17 +34,12 @@ object Prefs {
     fun rowsFlow(context: Context): Flow<Int> =
         context.dataStore.data.map { it[KEY_ROWS] ?: 6 }
 
-    /**
-     * Legge gli slot della home. Se non esiste ancora il nuovo formato,
-     * migra automaticamente dalla vecchia lista lineare "home_items".
-     */
     fun homeSlotsFlow(context: Context): Flow<List<HomeSlot>> =
         context.dataStore.data.map { prefs ->
             val raw = prefs[KEY_HOME_SLOTS]
             if (raw != null) {
                 HomeSlot.stringToList(raw)
             } else {
-                // migrazione da vecchio formato
                 val oldRaw = prefs[KEY_HOME_ITEMS] ?: ""
                 val oldItems = oldRaw.split(",").filter { it.isNotBlank() }
                 val cols = prefs[KEY_COLS] ?: 4
@@ -52,9 +47,15 @@ object Prefs {
             }
         }
 
+    /**
+     * Legge il dock preservando le posizioni vuote (placeholder).
+     * Una stringa vuota "" significa slot vuoto in quella posizione.
+     */
     fun dockItemsFlow(context: Context): Flow<List<String>> =
         context.dataStore.data.map { prefs ->
-            prefs[KEY_DOCK_ITEMS]?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+            val raw = prefs[KEY_DOCK_ITEMS]
+            if (raw.isNullOrEmpty()) emptyList()
+            else raw.split(",")
         }
 
     fun customLabelsFlow(context: Context): Flow<Map<String, String>> =
@@ -83,29 +84,28 @@ object Prefs {
         context.dataStore.edit { it[KEY_ROWS] = rows }
     }
 
-    /**
-     * Salva gli slot della home nel nuovo formato.
-     */
     suspend fun setHomeSlots(context: Context, slots: List<HomeSlot>) {
         context.dataStore.edit {
             it[KEY_HOME_SLOTS] = HomeSlot.listToString(slots)
-            // pulizia vecchio formato per non ri-migrare
             it.remove(KEY_HOME_ITEMS)
         }
     }
 
-    /**
-     * Mantenuto per compatibilità con eventuale codice esistente.
-     * Converte in slot e salva nel nuovo formato.
-     */
     suspend fun setHomeItems(context: Context, items: List<String>) {
         val cols = colsFlow(context).first()
         val slots = HomeSlot.migrateFromLinear(items, cols)
         setHomeSlots(context, slots)
     }
 
+    /**
+     * Salva il dock preservando i placeholder vuoti.
+     * Se la lista è più corta di 4, la riempie fino a 4.
+     */
     suspend fun setDockItems(context: Context, items: List<String>) {
-        context.dataStore.edit { it[KEY_DOCK_ITEMS] = items.joinToString(",") }
+        // normalizza a 4 slot preservando i vuoti
+        val normalized = items.toMutableList()
+        while (normalized.size < 4) normalized.add("")
+        context.dataStore.edit { it[KEY_DOCK_ITEMS] = normalized.joinToString(",") }
     }
 
     suspend fun setCustomLabel(context: Context, packageName: String, label: String) {
