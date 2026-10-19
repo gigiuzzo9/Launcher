@@ -871,14 +871,15 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun applyDrawerBackground() {
-        lifecycleScope.launch {
-            val color = Prefs.colorFlow(this@HomeActivity).first()
-            val alpha = Prefs.alphaFlow(this@HomeActivity).first()
-            currentDrawerColor = color            drawerContainer.setCardBackgroundColor(
-                Color.argb((alpha * 255).toInt(), Color.red(color), Color.green(color), Color.blue(color))
-            )
-        }
-    }
+    lifecycleScope.launch {
+        val color = Prefs.colorFlow(this@HomeActivity).first()
+        val alpha = Prefs.alphaFlow(this@HomeActivity).first()
+        currentDrawerColor = color
+        drawerContainer.setCardBackgroundColor(
+            Color.argb((alpha * 255).toInt(), Color.red(color), Color.green(color), Color.blue(color))
+        )
+     }
+   }
 
     override fun onResume() {
         super.onResume()
