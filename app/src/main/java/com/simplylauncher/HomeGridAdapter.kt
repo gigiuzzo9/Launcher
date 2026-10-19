@@ -9,17 +9,11 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 
-/**
- * Adapter per la griglia della home.
- * Ogni item rappresenta un HomeSlot (posizione fissa row/col).
- * Supporta altezza cella dinamica (passata da HomeActivity in base alle righe).
- */
 class HomeGridAdapter(
     private val onClick: (HomeSlot) -> Unit,
     private val onLongPress: (HomeSlot, View) -> Unit
 ) : ListAdapter<HomeSlot, HomeGridAdapter.SlotViewHolder>(DiffCallback()) {
 
-    /** Altezza in pixel di ogni cella. 0 = non ancora calcolata. */
     private var cellHeight: Int = 0
 
     fun setCellHeight(height: Int) {
@@ -28,6 +22,8 @@ class HomeGridAdapter(
             notifyDataSetChanged()
         }
     }
+
+    fun getCellHeightSafe(): Int = cellHeight
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SlotViewHolder {
         val view = LayoutInflater.from(parent.context)
@@ -55,7 +51,6 @@ class HomeGridAdapter(
         private val label: TextView = itemView.findViewById(R.id.appLabel)
 
         fun bind(slot: HomeSlot) {
-            // applica altezza cella se calcolata
             if (cellHeight > 0) {
                 val lp = itemView.layoutParams
                 if (lp.height != cellHeight) {
