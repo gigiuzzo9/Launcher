@@ -2,7 +2,6 @@ package com.simplylauncher
 
 import android.content.BroadcastReceiver
 import android.content.ClipData
-import android.content.ClipDescription
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -12,6 +11,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.DragEvent
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.animation.AnimationUtils
 import android.widget.FrameLayout
@@ -21,6 +21,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -31,7 +32,7 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var emptyMessage: TextView
     private lateinit var dockDrawerButton: FrameLayout
     private lateinit var dockLayout: View
-    private lateinit var adapter: AppAdapter
+    private lateinit var homeAdapter: HomeGridAdapter
     private lateinit var dockSlots: List<FrameLayout>
 
     private lateinit var drawerOverlay: FrameLayout
@@ -43,12 +44,19 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var contextMenuView: AppContextMenuView
     private var currentApp: AppInfo? = null
     private var currentAnchor: View? = null
-    private var fromDrawer = false
+    private var currentFromDrawer = false
+
+    private lateinit var dragController: DragController
+    private lateinit var dockController: DockController
+    private lateinit var touchHelper: ItemTouchHelper
+
+    private var currentCols = 4
+    private var currentRows = 6
 
     private val reloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             loadHomeApps()
-            loadDockApps()
+            dockController.refresh()
             loadDrawerApps()
         }
     }
@@ -72,48 +80,32 @@ class HomeActivity : AppCompatActivity() {
             findViewById(R.id.dockSlot4)
         )
 
-        setupDrawerButton()
-        setupContextMenu()
-        applyGridSettings()
-
-        adapter = AppAdapter(
-            onClick = { app -> AppRepository.launchApp(this, app.packageName) },
-            onLongPress = { app, view -> showContextMenu(app, view, showRemove = true, fromDrawer = false) }
-        )
-        homeRecyclerView.adapter = adapter
-        homeRecyclerView.setOnDragListener { _, event -> handleDrop(event, isDock = false, isHomeGrid = true) }
-
         drawerOverlay = findViewById(R.id.drawerOverlay)
         drawerContainer = findViewById(R.id.drawerContainer)
         drawerRecyclerView = findViewById(R.id.drawerRecyclerView)
 
-        drawerRecyclerView.layoutManager = GridLayoutManager(this, 4)
-        drawerRecyclerView.addItemDecoration(object : RecyclerView.ItemDecoration() {
-            override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
-                val spacing = (12 * resources.displayMetrics.density).toInt()
-                outRect.bottom = spacing
-            }
-        })
-        drawerAdapter = AppAdapter(
-            onClick = { app ->
-                AppRepository.launchApp(this, app.packageName)
-                closeDrawer()
-            },
-            onLongPress = { app, view -> showContextMenu(app, view, showRemove = false, fromDrawer = true) }
-        )
-        drawerRecyclerView.adapter = drawerAdapter
-        drawerRecyclerView.setOnDragListener { _, event -> handleDrop(event, isDock = false, isHomeGrid = false) }
+        setupDragController()
+        setupDockController()
+        setupHomeGrid()
+        setupDrawer()
+        setupContextMenu()
+        setupDrawerButton()
 
-        dockLayout.setOnDragListener { _, event -> handleDrop(event, isDock = true, isHomeGrid = false) }
-
-        drawerOverlay.setOnClickListener { closeDrawer() }
+        lifecycleScope.launch {
+            currentCols = Prefs.colsFlow(this@HomeActivity).first()
+            currentRows = Prefs.rowsFlow(this@HomeActivity).first()
+            applyGridSettings(currentCols)
+            loadHomeApps()
+            dockController.refresh()
+            loadDrawerApps()
+        }
 
         if (FirstRunSetup.isFirstRun(this)) {
             lifecycleScope.launch {
                 FirstRunSetup.populateHome(this@HomeActivity)
                 FirstRunSetup.markDone(this@HomeActivity)
                 loadHomeApps()
-                loadDockApps()
+                dockController.refresh()
                 loadDrawerApps()
             }
         }
@@ -127,21 +119,126 @@ class HomeActivity : AppCompatActivity() {
         )
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // SETUP
+    // ─────────────────────────────────────────────────────────────
+
+    private fun setupDragController() {
+        dragController = DragController(
+            activity = this,
+            rootView = findViewById(android.R.id.content),
+            homeRecyclerView = homeRecyclerView,
+            drawerOverlay = drawerOverlay,
+            onDropOnHome = { pkg, x, y -> handleDropOnHome(pkg, x, y) },
+            onDropOnDrawer = { pkg -> handleDropOnDrawer(pkg) },
+            onLongPressWithoutMove = { app, anchor, fromDrawer ->
+                showContextMenu(app, anchor, showRemove = !fromDrawer, fromDrawer = fromDrawer)
+            }
+        )
+
+        // collega il touch listener al root per intercettare i move durante il pending
+        findViewById<View>(android.R.id.content).setOnTouchListener { _, event ->
+            dragController.onTouchEvent(event)
+            false
+        }
+
+        // listener drop sulla home
+        homeRecyclerView.setOnDragListener { _, event ->
+            dragController.handleHomeDragEvent(event)
+        }
+
+        // listener drop sul drawer (rimuove dalla home)
+        drawerRecyclerView.setOnDragListener { _, event ->
+            dragController.handleDrawerDragEvent(event)
+        }
+
+        // anche l'overlay deve accettare il drop per rimuovere
+        drawerOverlay.setOnDragListener { _, event ->
+            if (event.action == DragEvent.ACTION_DROP) {
+                dragController.handleDrawerDragEvent(event)
+            } else {
+                false
+            }
+        }
+    }
+
+    private fun setupDockController() {
+        dockController = DockController(
+            activity = this,
+            slots = dockSlots,
+            onAppLongPressed = { app, view ->
+                dragController.onLongPress(app, view, DragController.SOURCE_DOCK, false)
+            }
+        )
+        dockController.setup()
+    }
+
+    private fun setupHomeGrid() {
+        homeAdapter = HomeGridAdapter(
+            onClick = { slot -> AppRepository.launchApp(this, slot.packageName) },
+            onLongPress = { slot, view ->
+                val app = HomeGridAdapter.AppCache.get(this, slot.packageName)
+                if (app != null) {
+                    dragController.onLongPress(app, view, DragController.SOURCE_HOME, false)
+                }
+            }
+        )
+        homeRecyclerView.adapter = homeAdapter
+
+        touchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
+            ItemTouchHelper.UP or ItemTouchHelper.DOWN or
+                    ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT, 0
+        ) {
+            override fun onMove(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                target: RecyclerView.ViewHolder
+            ): Boolean {
+                val from = viewHolder.adapterPosition
+                val to = target.adapterPosition
+                if (from == RecyclerView.NO_POSITION || to == RecyclerView.NO_POSITION) return false
+                val swapped = homeAdapter.swap(from, to)
+                if (swapped) {
+                    persistHomeSlots()
+                }
+                return swapped
+            }
+
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) = Unit
+        })
+        touchHelper.attachToRecyclerView(homeRecyclerView)
+    }
+
+    private fun setupDrawer() {
+        drawerRecyclerView.layoutManager = GridLayoutManager(this, 4)
+        drawerRecyclerView.addItemDecoration(object : RecyclerView.ItemDecoration() {
+            override fun getItemOffsets(
+                outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State
+            ) {
+                val spacing = (12 * resources.displayMetrics.density).toInt()
+                outRect.bottom = spacing
+            }
+        })
+        drawerAdapter = AppAdapter(
+            onClick = { app ->
+                AppRepository.launchApp(this, app.packageName)
+                closeDrawer()
+            },
+            onLongPress = { app, view ->
+                dragController.onLongPress(app, view, DragController.SOURCE_DRAWER, true)
+            }
+        )
+        drawerRecyclerView.adapter = drawerAdapter
+
+        drawerOverlay.setOnClickListener { closeDrawer() }
+    }
+
     private fun setupContextMenu() {
         contextMenuView = AppContextMenuView(this)
 
         contextMenuView.onMove = {
-            currentApp?.let { app ->
-                currentAnchor?.let { anchor ->
-                    val clip = ClipData.newPlainText("package", app.packageName)
-                    val shadow = View.DragShadowBuilder(anchor)
-                    anchor.startDragAndDrop(clip, shadow, null, 0)
-
-                    if (drawerOpen) {
-                        drawerOverlay.animate().alpha(0.15f).setDuration(300).start()
-                    }
-                }
-            }
+            // non usato: il drag parte direttamente
+            contextMenuView.dismiss()
         }
 
         contextMenuView.onUninstall = {
@@ -158,7 +255,7 @@ class HomeActivity : AppCompatActivity() {
             currentApp?.let { app ->
                 RenameDialog.show(this, app) {
                     loadHomeApps()
-                    loadDockApps()
+                    dockController.refresh()
                     loadDrawerApps()
                 }
             }
@@ -167,13 +264,12 @@ class HomeActivity : AppCompatActivity() {
         contextMenuView.onRemove = {
             currentApp?.let { app ->
                 lifecycleScope.launch {
-                    val homeItems = Prefs.homeItemsFlow(this@HomeActivity).first()
+                    val homeSlots = Prefs.homeSlotsFlow(this@HomeActivity).first()
                     val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
-                    Prefs.setHomeItems(this@HomeActivity, homeItems - app.packageName)
+                    Prefs.setHomeSlots(this@HomeActivity, homeSlots.filter { it.packageName != app.packageName })
                     Prefs.setDockItems(this@HomeActivity, dockItems - app.packageName)
                     loadHomeApps()
-                    loadDockApps()
-                    loadDrawerApps()
+                    dockController.refresh()
                 }
             }
         }
@@ -187,105 +283,8 @@ class HomeActivity : AppCompatActivity() {
     private fun showContextMenu(app: AppInfo, anchor: View, showRemove: Boolean, fromDrawer: Boolean) {
         currentApp = app
         currentAnchor = anchor
-        this.fromDrawer = fromDrawer
+        currentFromDrawer = fromDrawer
         contextMenuView.show(anchor, showRemove)
-    }
-
-    private fun handleDrop(event: DragEvent, isDock: Boolean, isHomeGrid: Boolean): Boolean {
-        when (event.action) {
-            DragEvent.ACTION_DRAG_STARTED -> {
-                return event.clipDescription.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN)
-            }
-            DragEvent.ACTION_DRAG_ENTERED -> {
-                if (isDock) dockLayout.setBackgroundColor(Color.parseColor("#33FFFFFF"))
-                return true
-            }
-            DragEvent.ACTION_DRAG_EXITED -> {
-                if (isDock) dockLayout.setBackgroundColor(Color.TRANSPARENT)
-                return true
-            }
-            DragEvent.ACTION_DROP -> {
-                val pkg = event.clipData.getItemAt(0).text.toString()
-
-                if (isDock) {
-                    addToDock(pkg)
-                } else if (isHomeGrid) {
-                    val cols = getCurrentCols()
-                    val cellWidth = homeRecyclerView.width / cols.toFloat()
-                    val cellHeight = homeRecyclerView.height / 6f
-                    val col = (event.x / cellWidth).toInt().coerceIn(0, cols - 1)
-                    val row = (event.y / cellHeight).toInt().coerceIn(0, 5)
-                    addToHomeAt(pkg, row * cols + col)
-                } else {
-                    // Drop nel cassetto: rimuove dalla home
-                    removeFromHome(pkg)
-                }
-
-                drawerOverlay.animate().alpha(1f).setDuration(200).start()
-
-                // Se il drag partiva dal cassetto, chiudi il cassetto
-                if (fromDrawer) {
-                    closeDrawer()
-                }
-                return true
-            }
-            DragEvent.ACTION_DRAG_ENDED -> {
-                if (isDock) dockLayout.setBackgroundColor(Color.TRANSPARENT)
-                drawerOverlay.animate().alpha(1f).setDuration(200).start()
-                return true
-            }
-        }
-        return false
-    }
-
-    private fun getCurrentCols(): Int = (homeRecyclerView.layoutManager as? GridLayoutManager)?.spanCount ?: 4
-
-    private fun addToHome(pkg: String) {
-        lifecycleScope.launch {
-            val homeItems = Prefs.homeItemsFlow(this@HomeActivity).first()
-            if (!homeItems.contains(pkg)) {
-                Prefs.setHomeItems(this@HomeActivity, homeItems + pkg)
-                loadHomeApps()
-            }
-        }
-    }
-
-    private fun addToHomeAt(pkg: String, index: Int) {
-        lifecycleScope.launch {
-            val homeItems = Prefs.homeItemsFlow(this@HomeActivity).first().toMutableList()
-            homeItems.remove(pkg)
-            val targetIndex = index.coerceIn(0, homeItems.size)
-            homeItems.add(targetIndex, pkg)
-            Prefs.setHomeItems(this@HomeActivity, homeItems)
-            loadHomeApps()
-        }
-    }
-
-    private fun removeFromHome(pkg: String) {
-        lifecycleScope.launch {
-            val homeItems = Prefs.homeItemsFlow(this@HomeActivity).first()
-            if (homeItems.contains(pkg)) {
-                Prefs.setHomeItems(this@HomeActivity, homeItems - pkg)
-                loadHomeApps()
-            }
-        }
-    }
-
-    private fun addToDock(pkg: String) {
-        lifecycleScope.launch {
-            val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
-            if (!dockItems.contains(pkg) && dockItems.size < 4) {
-                Prefs.setDockItems(this@HomeActivity, dockItems + pkg)
-                loadDockApps()
-            }
-        }
-    }
-
-    private fun applyGridSettings() {
-        lifecycleScope.launch {
-            val cols = Prefs.colsFlow(this@HomeActivity).first()
-            homeRecyclerView.layoutManager = GridLayoutManager(this@HomeActivity, cols)
-        }
     }
 
     private fun setupDrawerButton() {
@@ -299,24 +298,136 @@ class HomeActivity : AppCompatActivity() {
         dockDrawerButton.setOnClickListener { openDrawer() }
     }
 
-    override fun onResume() {
-        super.onResume()
-        if (drawerOpen) closeDrawer()
-        applyGridSettings()
+    // ─────────────────────────────────────────────────────────────
+    // DROP
+    // ─────────────────────────────────────────────────────────────
+
+    private fun handleDropOnHome(pkg: String, x: Float, y: Float): Boolean {
+        val lm = homeRecyclerView.layoutManager as? GridLayoutManager ?: return false
+        val cols = lm.spanCount
+
+        // trova item sotto il dito
+        val child = homeRecyclerView.findChildViewUnder(x, y)
+        val targetPos = if (child != null) {
+            homeRecyclerView.getChildAdapterPosition(child)
+        } else {
+            // calcola cella in base alla posizione
+            val cellW = homeRecyclerView.width / cols.toFloat()
+            val cellH = cellW
+            val col = (x / cellW).toInt().coerceIn(0, cols - 1)
+            val row = (y / cellH).toInt()
+            row * cols + col
+        }
+
+        lifecycleScope.launch {
+            val slots = Prefs.homeSlotsFlow(this@HomeActivity).first().toMutableList()
+            // rimuovi il pkg esistente se c'è
+            slots.removeAll { it.packageName == pkg }
+
+            // posizione target
+            val row = targetPos / cols
+            val col = targetPos % cols
+
+            // se c'è già un item in quella posizione, swap
+            val occupant = slots.firstOrNull { it.row == row && it.col == col }
+            if (occupant != null) {
+                // l'occupante va dove eravamo
+                val original = Prefs.homeSlotsFlow(this@HomeActivity).first()
+                    .firstOrNull { it.packageName == pkg }
+                if (original != null) {
+                    slots.removeAll { it.packageName == occupant.packageName }
+                    slots.add(HomeSlot(occupant.packageName, original.row, original.col))
+                }
+            }
+
+            slots.removeAll { it.row == row && it.col == col }
+            slots.add(HomeSlot(pkg, row, col))
+            Prefs.setHomeSlots(this@HomeActivity, slots)
+
+            // se il pkg era nella dock, rimuovilo
+            val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
+            if (dockItems.contains(pkg)) {
+                Prefs.setDockItems(this@HomeActivity, dockItems - pkg)
+                dockController.refresh()
+            }
+
+            loadHomeApps()
+        }
+        return true
+    }
+
+    private fun handleDropOnDrawer(pkg: String) {
+        lifecycleScope.launch {
+            val slots = Prefs.homeSlotsFlow(this@HomeActivity).first()
+            Prefs.setHomeSlots(this@HomeActivity, slots.filter { it.packageName != pkg })
+            val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
+            Prefs.setDockItems(this@HomeActivity, dockItems - pkg)
+            loadHomeApps()
+            dockController.refresh()
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // LOAD
+    // ─────────────────────────────────────────────────────────────
+
+    private fun applyGridSettings(cols: Int) {
+        homeRecyclerView.layoutManager = GridLayoutManager(this, cols)
+    }
+
+    private fun loadHomeApps() {
+        lifecycleScope.launch {
+            val slots = Prefs.homeSlotsFlow(this@HomeActivity).first()
+            val allApps = AppRepository.loadInstalledAppsWithCustomLabels(this@HomeActivity)
+            HomeGridAdapter.AppCache.putAll(allApps)
+
+            // crea la lista con TUTTI gli slot fino alla posizione massima
+            val maxIndex = slots.maxOfOrNull { it.row * currentCols + it.col } ?: -1
+            // assicurati che la griglia abbia almeno N slot per riempire lo schermo
+            val minSlots = currentCols * currentRows
+            val totalSlots = maxOf(maxIndex + 1, minSlots)
+
+            val fullList = (0 until totalSlots).map { index ->
+                val row = index / currentCols
+                val col = index % currentCols
+                slots.firstOrNull { it.row == row && it.col == col }
+                    ?: HomeSlot("", row, col) // slot vuoto
+            }
+            homeAdapter.submitList(fullList)
+
+            if (!drawerOpen) {
+                if (slots.isEmpty()) {
+                    emptyMessage.visibility = View.VISIBLE
+                    homeRecyclerView.visibility = View.GONE
+                } else {
+                    emptyMessage.visibility = View.GONE
+                    homeRecyclerView.visibility = View.VISIBLE
+                }
+            }
+        }
+    }
+
+    fun reloadHomeGrid() {
         loadHomeApps()
-        loadDockApps()
-        loadDrawerApps()
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        try { unregisterReceiver(reloadReceiver) } catch (_: Exception) {}
+    private fun persistHomeSlots() {
+        lifecycleScope.launch {
+            val current = homeAdapter.currentList
+                .filter { it.packageName.isNotBlank() }
+            Prefs.setHomeSlots(this@HomeActivity, current)
+        }
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        if (drawerOpen) closeDrawer()
+    private fun loadDrawerApps() {
+        lifecycleScope.launch {
+            drawerAdapter.submitList(AppRepository.loadInstalledAppsWithCustomLabels(this@HomeActivity))
+        }
     }
+
+    // ─────────────────────────────────────────────────────────────
+    // DRAWER
+    // ─────────────────────────────────────────────────────────────
 
     private fun openDrawer() {
         if (drawerOpen) return
@@ -343,57 +454,37 @@ class HomeActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val color = Prefs.colorFlow(this@HomeActivity).first()
             val alpha = Prefs.alphaFlow(this@HomeActivity).first()
-            drawerContainer.setCardBackgroundColor(Color.argb((alpha * 255).toInt(), Color.red(color), Color.green(color), Color.blue(color)))
+            drawerContainer.setCardBackgroundColor(
+                Color.argb((alpha * 255).toInt(), Color.red(color), Color.green(color), Color.blue(color))
+            )
         }
     }
 
-    private fun loadHomeApps() {
+    // ─────────────────────────────────────────────────────────────
+    // LIFECYCLE
+    // ─────────────────────────────────────────────────────────────
+
+    override fun onResume() {
+        super.onResume()
+        if (drawerOpen) closeDrawer()
         lifecycleScope.launch {
-            val homeItems = Prefs.homeItemsFlow(this@HomeActivity).first()
-            val allApps = AppRepository.loadInstalledAppsWithCustomLabels(this@HomeActivity)
-            val homeApps = homeItems.mapNotNull { pkg -> allApps.find { it.packageName == pkg } }
-            adapter.submitList(homeApps)
-            if (!drawerOpen) {
-                if (homeApps.isEmpty()) {
-                    emptyMessage.visibility = TextView.VISIBLE
-                    homeRecyclerView.visibility = RecyclerView.GONE
-                } else {
-                    emptyMessage.visibility = TextView.GONE
-                    homeRecyclerView.visibility = RecyclerView.VISIBLE
-                }
-            }
+            currentCols = Prefs.colsFlow(this@HomeActivity).first()
+            currentRows = Prefs.rowsFlow(this@HomeActivity).first()
+            applyGridSettings(currentCols)
+            loadHomeApps()
+            dockController.refresh()
+            loadDrawerApps()
         }
     }
 
-    private fun loadDrawerApps() {
-        lifecycleScope.launch {
-            drawerAdapter.submitList(AppRepository.loadInstalledAppsWithCustomLabels(this@HomeActivity))
-        }
+    override fun onDestroy() {
+        super.onDestroy()
+        try { unregisterReceiver(reloadReceiver) } catch (_: Exception) {}
     }
 
-    private fun loadDockApps() {
-        lifecycleScope.launch {
-            val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
-            val allApps = AppRepository.loadInstalledAppsWithCustomLabels(this@HomeActivity)
-            val dockApps = dockItems.mapNotNull { pkg -> allApps.find { it.packageName == pkg } }
-            dockSlots.forEachIndexed { index, slot ->
-                slot.removeAllViews()
-                val app = dockApps.getOrNull(index)
-                if (app != null) {
-                    val imageView = ImageView(this@HomeActivity).apply {
-                        setImageDrawable(app.icon)
-                        val size = (62 * resources.displayMetrics.density).toInt()
-                        layoutParams = FrameLayout.LayoutParams(size, size).apply { gravity = Gravity.CENTER }
-                    }
-                    slot.addView(imageView)
-                    slot.setOnClickListener { AppRepository.launchApp(this@HomeActivity, app.packageName) }
-                    slot.setOnLongClickListener { view ->
-                        showContextMenu(app, view, showRemove = true, fromDrawer = false)
-                        true
-                    }
-                }
-            }
-        }
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        if (drawerOpen) closeDrawer()
     }
 
     private fun askLauncherIfNeeded() {
