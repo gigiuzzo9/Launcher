@@ -5,15 +5,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.core.view.DragStartHelper
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 
 class AppAdapter(
     private val onClick: (AppInfo) -> Unit,
-    private val onLongPress: (AppInfo, View) -> Unit,
-    private val onStartDrag: ((RecyclerView.ViewHolder) -> Unit)? = null
+    private val onLongPress: (AppInfo, View) -> Unit
 ) : ListAdapter<AppInfo, AppAdapter.AppViewHolder>(DiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AppViewHolder {
@@ -29,7 +27,6 @@ class AppAdapter(
     inner class AppViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val icon: ImageView = itemView.findViewById(R.id.appIcon)
         private val label: TextView = itemView.findViewById(R.id.appLabel)
-        private var dragHelper: DragStartHelper? = null
 
         fun bind(app: AppInfo) {
             icon.setImageDrawable(app.icon)
@@ -40,18 +37,6 @@ class AppAdapter(
                 onLongPress(app, view)
                 true
             }
-
-            dragHelper?.detach()
-
-            dragHelper = DragStartHelper(itemView) { _, _ ->
-                if (onStartDrag != null) {
-                    onStartDrag.invoke(this)
-                    true
-                } else {
-                    false
-                }
-            }
-            dragHelper?.attach()
         }
     }
 
