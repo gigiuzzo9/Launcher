@@ -877,4 +877,22 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    override fun on
+    override fun onDestroy() {
+        super.onDestroy()
+        try { unregisterReceiver(reloadReceiver) } catch (_: Exception) {}
+    }
+
+    private fun askLauncherIfNeeded() {
+        val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val res = packageManager.resolveActivity(homeIntent, 0)
+        if (res?.activityInfo?.packageName == packageName) return
+        val prefs = getSharedPreferences("launcher_flags", MODE_PRIVATE)
+        if (prefs.getBoolean("asked_launcher", false)) return
+        prefs.edit().putBoolean("asked_launcher", true).apply()
+        try {
+            startActivity(Intent(Settings.ACTION_HOME_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (e: Exception) {
+            try { startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e2: Exception) {}
+        }
+    }
+}
