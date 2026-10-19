@@ -19,32 +19,36 @@ class AppContextMenuView(private val ctx: Context) {
 
     private var popupWindow: PopupWindow? = null
 
-    fun show(anchor: View, showRemove: Boolean) {
+    fun show(anchor: View, showRemove: Boolean, drawerIsWhite: Boolean = false) {
         dismiss()
+
+        val bgColor = if (drawerIsWhite) Color.BLACK else Color.WHITE
+        val textColor = if (drawerIsWhite) Color.WHITE else Color.BLACK
 
         val container = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(24, 16, 24, 16)
+            setPadding(32, 16, 32, 16)
             val drawable = GradientDrawable().apply {
                 cornerRadius = 16f
-                setColor(Color.parseColor("#EE000000"))
+                setColor(bgColor)
             }
             background = drawable
+            elevation = 8f * ctx.resources.displayMetrics.density
         }
 
         if (showRemove) {
-            container.addView(createMenuItem(ctx.getString(R.string.menu_remove)) {
+            container.addView(createMenuItem(ctx.getString(R.string.menu_remove), textColor) {
                 onRemove?.invoke()
                 dismiss()
             })
         }
 
-        container.addView(createMenuItem(ctx.getString(R.string.menu_uninstall)) {
+        container.addView(createMenuItem(ctx.getString(R.string.menu_uninstall), textColor) {
             onUninstall?.invoke()
             dismiss()
         })
 
-        container.addView(createMenuItem(ctx.getString(R.string.menu_rename)) {
+        container.addView(createMenuItem(ctx.getString(R.string.menu_rename), textColor) {
             onRename?.invoke()
             dismiss()
         })
@@ -53,7 +57,7 @@ class AppContextMenuView(private val ctx: Context) {
             container,
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT,
-            false // NON focusable: così non ruba i touch al drag
+            false
         ).apply {
             isOutsideTouchable = false
             isFocusable = false
@@ -62,12 +66,12 @@ class AppContextMenuView(private val ctx: Context) {
         }
     }
 
-    private fun createMenuItem(text: String, onClick: () -> Unit): TextView {
+    private fun createMenuItem(text: String, textColor: Int, onClick: () -> Unit): TextView {
         return TextView(ctx).apply {
             this.text = text
-            setTextColor(Color.WHITE)
+            setTextColor(textColor)
             textSize = 16f
-            setPadding(32, 24, 32, 24)
+            setPadding(32, 20, 32, 20)
             setOnClickListener { onClick() }
         }
     }
@@ -79,10 +83,6 @@ class AppContextMenuView(private val ctx: Context) {
 
     fun isShowing(): Boolean = popupWindow?.isShowing == true
 
-    /**
-     * Ritorna true se il punto (in coordinate schermo) è dentro il popup.
-     * Usato da HomeActivity per capire se chiudere il popup al tocco.
-     */
     fun isPointInside(screenX: Float, screenY: Float): Boolean {
         val pw = popupWindow ?: return false
         if (!pw.isShowing) return false
