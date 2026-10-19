@@ -78,4 +78,18 @@ class AppContextMenuView(private val ctx: Context) {
     }
 
     fun isShowing(): Boolean = popupWindow?.isShowing == true
+
+    /**
+     * Ritorna true se il punto (in coordinate schermo) è dentro il popup.
+     * Usato da HomeActivity per capire se chiudere il popup al tocco.
+     */
+    fun isPointInside(screenX: Float, screenY: Float): Boolean {
+        val pw = popupWindow ?: return false
+        if (!pw.isShowing) return false
+        val container = pw.contentView ?: return false
+        val loc = IntArray(2)
+        container.getLocationOnScreen(loc)
+        return screenX >= loc[0] && screenX <= loc[0] + container.width &&
+                screenY >= loc[1] && screenY <= loc[1] + container.height
+    }
 }
