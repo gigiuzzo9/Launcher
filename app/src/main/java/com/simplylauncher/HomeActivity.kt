@@ -118,14 +118,12 @@ class HomeActivity : AppCompatActivity() {
             RECEIVER_NOT_EXPORTED
         )
 
-        // al primo layout: calcola cellHeight e padding dock
         homeRecyclerView.post {
             updateRecyclerPadding()
             recalculateCellHeight()
         }
         dockLayout.post { updateRecyclerPadding() }
 
-        // quando il RecyclerView cambia dimensione (rotazione, resize), ricalcola
         homeRecyclerView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             updateRecyclerPadding()
             recalculateCellHeight()
@@ -407,7 +405,6 @@ class HomeActivity : AppCompatActivity() {
         val targetPos = if (child != null) {
             homeRecyclerView.getChildAdapterPosition(child)
         } else {
-            // stima posizione usando cellHeight reale
             val cellH = if (homeAdapter.getCellHeightSafe() > 0)
                 homeAdapter.getCellHeightSafe()
             else (homeRecyclerView.height - homeRecyclerView.paddingTop - homeRecyclerView.paddingBottom) / currentRows
@@ -509,10 +506,6 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Calcola cellHeight in base allo spazio disponibile e alle righe scelte,
-     * poi lo passa all'adapter.
-     */
     private fun recalculateCellHeight() {
         if (homeRecyclerView.height == 0 || currentRows <= 0) return
 
@@ -536,9 +529,57 @@ class HomeActivity : AppCompatActivity() {
         homeRecyclerView.layoutManager = GridLayoutManager(this, cols)
     }
 
+    /**
+     * Clampa le posizioni fuori griglia (row >= currentRows) e salva.
+     */
+    private fun clampSlotsToGrid(slots: List<HomeSlot>): List<HomeSlot> {
+        if (slots.isEmpty()) return slots
+        val out = mutableListOf<HomeSlot>()
+        val occupied = mutableSetOf<Pair<Int, Int>>()
+
+        // prima passata: slot validi
+        slots.forEach { s ->
+            val r = s.row.coerceIn(0, currentRows - 1)
+            val c = s.col.coerceIn(0, currentCols - 1)
+            val key = r to c
+            if (!occupied.contains(key)) {
+                occupied.add(key)
+                out.add(HomeSlot(s.packageName, r, c))
+            }
+        }
+
+        // seconda passata: slot che collidevano -> cerca posto libero
+        slots.forEach { s ->
+            val alreadyPresent = out.any { it.packageName == s.packageName }
+            if (!alreadyPresent) {
+                // cerca posto libero
+                var placed = false
+                for (r in 0 until currentRows) {
+                    for (c in 0 until currentCols) {
+                        if (!occupied.contains(r to c)) {
+                            occupied.add(r to c)
+                            out.add(HomeSlot(s.packageName, r, c))
+                            placed = true
+                            break
+                        }
+                    }
+                    if (placed) break
+                }
+            }
+        }
+        return out
+    }
+
     private fun loadHomeApps() {
         lifecycleScope.launch {
-            val slots = Prefs.homeSlotsFlow(this@HomeActivity).first()
+            val rawSlots = Prefs.homeSlotsFlow(this@HomeActivity).first()
+            val slots = clampSlotsToGrid(rawSlots)
+
+            // se il clamp ha cambiato qualcosa, salva
+            if (slots.size != rawSlots.size || slots != rawSlots) {
+                Prefs.setHomeSlots(this@HomeActivity, slots)
+            }
+
             val allApps = AppRepository.loadInstalledAppsWithCustomLabels(this@HomeActivity)
             HomeGridAdapter.AppCache.putAll(allApps)
 
@@ -553,7 +594,10 @@ class HomeActivity : AppCompatActivity() {
                     ?: HomeSlot("", row, col)
             }
             homeAdapter.submitList(fullList) {
-                homeRecyclerView.post { recalculateCellHeight() }
+                homeRecyclerView.post {
+                    updateRecyclerPadding()
+                    recalculateCellHeight()
+                }
             }
 
             if (!drawerOpen) {
