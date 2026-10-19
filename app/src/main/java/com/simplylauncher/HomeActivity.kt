@@ -183,10 +183,10 @@ class HomeActivity : AppCompatActivity() {
             }
             REQUEST_BIND_WIDGET -> {
                 if (resultCode == RESULT_OK) {
+                    // Il binding è già stato completato dal sistema con il consenso dell'utente.
+                    // NON richiamare bindAppWidgetIdIfAllowed qui.
                     val info = appWidgetManager.getAppWidgetInfo(pendingWidgetId)
                     if (info != null) {
-                        // Il binding è già stato fatto dal sistema con il consenso dell'utente.
-                        // NON richiamare bindAppWidgetIdIfAllowed.
                         if (info.configure != null) {
                             val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
                                 component = info.configure
