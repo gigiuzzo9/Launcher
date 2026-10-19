@@ -18,11 +18,10 @@ class AppContextMenuView(private val ctx: Context) {
 
     private var popupWindow: PopupWindow? = null
 
-    fun show(anchor: View) {
+    fun show(anchor: View, showRemove: Boolean) {
         val container = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(24, 16, 24, 16)
-
             val drawable = GradientDrawable().apply {
                 cornerRadius = 16f
                 setColor(Color.parseColor("#EE000000"))
@@ -30,22 +29,20 @@ class AppContextMenuView(private val ctx: Context) {
             background = drawable
         }
 
-        val uninstallItem = createMenuItem(ctx.getString(R.string.menu_uninstall)) {
+        container.addView(createMenuItem(ctx.getString(R.string.menu_uninstall)) {
             onUninstall?.invoke()
             dismiss()
-        }
-        val renameItem = createMenuItem(ctx.getString(R.string.menu_rename)) {
+        })
+        container.addView(createMenuItem(ctx.getString(R.string.menu_rename)) {
             onRename?.invoke()
             dismiss()
+        })
+        if (showRemove) {
+            container.addView(createMenuItem(ctx.getString(R.string.menu_remove)) {
+                onRemove?.invoke()
+                dismiss()
+            })
         }
-        val removeItem = createMenuItem(ctx.getString(R.string.menu_remove)) {
-            onRemove?.invoke()
-            dismiss()
-        }
-
-        container.addView(uninstallItem)
-        container.addView(renameItem)
-        container.addView(removeItem)
 
         popupWindow = PopupWindow(
             container,
@@ -55,9 +52,7 @@ class AppContextMenuView(private val ctx: Context) {
         ).apply {
             isOutsideTouchable = true
             isFocusable = true
-            setOnDismissListener {
-                onDismiss?.invoke()
-            }
+            setOnDismissListener { onDismiss?.invoke() }
             showAtLocation(anchor, Gravity.CENTER, 0, 0)
         }
     }
