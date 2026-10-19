@@ -55,7 +55,6 @@ class HomeGridAdapter(
             val ctx = itemView.context
             val density = ctx.resources.displayMetrics.density
 
-            // altezza cella
             if (cellHeight > 0) {
                 val lp = itemView.layoutParams
                 if (lp.height != cellHeight) {
@@ -64,27 +63,21 @@ class HomeGridAdapter(
                 }
             }
 
-            // adatta icona e label in base all'altezza disponibile
-            val cellHeightDp = if (cellHeight > 0) (cellHeight / density).toInt() else 80
-
-            val iconSizeDp = when {
-                cellHeightDp < 65 -> 36
-                cellHeightDp < 80 -> 44
-                else -> 57
-            }
-            val labelSizeSp = when {
-                cellHeightDp < 65 -> 0f // nascosta
-                cellHeightDp < 80 -> 9f
-                else -> 11f
-            }
-            val labelVisibility = if (labelSizeSp == 0f) View.GONE else View.VISIBLE
-
+            // icona SEMPRE 57dp (non ridurla mai)
+            val iconSizePx = (57 * density).toInt()
             icon.layoutParams = icon.layoutParams.apply {
-                width = (iconSizeDp * density).toInt()
-                height = (iconSizeDp * density).toInt()
+                width = iconSizePx
+                height = iconSizePx
             }
-            label.textSize = labelSizeSp
-            label.visibility = labelVisibility
+
+            // label: visibile solo se c'è spazio sufficiente (cella >= 70dp)
+            val cellHeightDp = if (cellHeight > 0) (cellHeight / density).toInt() else 80
+            if (cellHeightDp < 70) {
+                label.visibility = View.GONE
+            } else {
+                label.visibility = View.VISIBLE
+                label.textSize = 11f
+            }
 
             val app = AppCache.get(ctx, slot.packageName)
             if (app != null) {
@@ -97,7 +90,6 @@ class HomeGridAdapter(
                     true
                 }
             } else {
-                // cella vuota
                 icon.setImageDrawable(null)
                 label.text = ""
                 itemView.visibility = View.VISIBLE
