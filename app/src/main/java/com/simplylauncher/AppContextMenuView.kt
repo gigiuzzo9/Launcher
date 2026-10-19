@@ -24,7 +24,6 @@ class AppContextMenuView(context: Context) : LinearLayout(context) {
 
         menuContainer = LinearLayout(context).apply {
             orientation = VERTICAL
-            setBackgroundColor(Color.parseColor("#EE000000"))
             setPadding(24, 16, 24, 16)
 
             val drawable = GradientDrawable().apply {
@@ -66,12 +65,15 @@ class AppContextMenuView(context: Context) : LinearLayout(context) {
 
     fun show(x: Float, y: Float) {
         visibility = VISIBLE
-        // Posiziona il menu dove c'è il dito, senza uscire dallo schermo
+        bringToFront()
+
         post {
             val screenWidth = resources.displayMetrics.widthPixels
             val screenHeight = resources.displayMetrics.heightPixels
             val menuWidth = menuContainer.width
             val menuHeight = menuContainer.height
+
+            if (menuWidth == 0 || menuHeight == 0) return@post
 
             val finalX = x.coerceIn(0f, (screenWidth - menuWidth).toFloat())
             val finalY = y.coerceIn(0f, (screenHeight - menuHeight).toFloat())
