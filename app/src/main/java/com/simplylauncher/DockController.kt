@@ -1,7 +1,5 @@
 package com.simplylauncher
 
-import android.content.ClipData
-import android.content.ClipDescription
 import android.graphics.Color
 import android.view.DragEvent
 import android.view.Gravity
@@ -25,7 +23,6 @@ class DockController(
 
     fun setup() {
         slots.forEachIndexed { index, slot ->
-            // Listener drop
             slot.setOnDragListener { _, event -> handleSlotDrop(event, index) }
         }
     }
@@ -67,7 +64,7 @@ class DockController(
     private fun handleSlotDrop(event: DragEvent, slotIndex: Int): Boolean {
         when (event.action) {
             DragEvent.ACTION_DRAG_STARTED -> {
-                return event.clipDescription.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN)
+                return event.clipDescription.hasMimeType(android.content.ClipDescription.MIMETYPE_TEXT_PLAIN)
             }
 
             DragEvent.ACTION_DRAG_ENTERED -> {
@@ -83,31 +80,26 @@ class DockController(
             DragEvent.ACTION_DROP -> {
                 slots[slotIndex].setBackgroundColor(Color.TRANSPARENT)
                 val pkg = event.clipData.getItemAt(0).text.toString()
-                val source = event.clipData.description.label?.toString() ?: "UNKNOWN"
+                val source = event.clipData.description.label?.toString() ?: ""
+
                 activity.lifecycleScope.launch {
-                    if (source == "DOCK") {
-                        // riordino dock: scambia slot
-                        val dockItems = Prefs.dockItemsFlow(activity).first().toMutableList()
+                    val dockItems = Prefs.dockItemsFlow(activity).first().toMutableList()
+
+                    if (source == DragController.SOURCE_DOCK) {
+                        // riordino dock: swap slot
                         val fromIndex = dockItems.indexOf(pkg)
                         if (fromIndex != -1 && fromIndex != slotIndex) {
-                            // swap
-                            val a = dockItems.getOrNull(fromIndex)
-                            val b = dockItems.getOrNull(slotIndex)
-                            if (a != null && b != null) {
-                                dockItems[fromIndex] = b
-                                dockItems[slotIndex] = a
-                            } else if (a != null) {
-                                dockItems.removeAt(fromIndex)
-                                while (dockItems.size < slotIndex) dockItems.add("")
-                                if (dockItems.size == slotIndex) dockItems.add(a)
-                                else dockItems[slotIndex] = a
-                            }
+                            while (dockItems.size <= maxOf(fromIndex, slotIndex)) dockItems.add("")
+                            val a = dockItems[fromIndex]
+                            val b = dockItems[slotIndex]
+                            dockItems[fromIndex] = b
+                            dockItems[slotIndex] = a
                             Prefs.setDockItems(activity, dockItems.filter { it.isNotBlank() })
                             refresh()
                         }
                     } else {
-                        // da HOME o DRAWER: aggiungi allo slot
-                        addToDockAt(pkg, slotIndex)
+                        // da HOME o DRAWER: metti nello slot
+                        addToDockAt(pkg, slotIndex, dockItems)
                     }
                 }
                 return true
@@ -121,30 +113,26 @@ class DockController(
         return false
     }
 
-    private suspend fun addToDockAt(pkg: String, slotIndex: Int) {
-        val dockItems = Prefs.dockItemsFlow(activity).first().toMutableList()
-
-        // rimuovi se già presente (evita duplicati)
+    private suspend fun addToDockAt(pkg: String, slotIndex: Int, dockItems: MutableList<String>) {
+        // rimuovi se già presente
         val existingIndex = dockItems.indexOf(pkg)
         if (existingIndex != -1) dockItems.removeAt(existingIndex)
 
-        // riempi fino a slotIndex con placeholder vuoti
+        // riempi fino a slotIndex con placeholder
         while (dockItems.size < slotIndex) dockItems.add("")
 
         if (dockItems.size == slotIndex) {
             dockItems.add(pkg)
         } else {
-            // slot occupato: swap (l'occupante va in fondo)
+            // slot occupato: metti pkg, sposta occupante in fondo
             val previous = dockItems[slotIndex]
             dockItems[slotIndex] = pkg
-            if (previous.isNotBlank()) {
-                dockItems.add(previous)
-            }
+            if (previous.isNotBlank()) dockItems.add(previous)
         }
 
         Prefs.setDockItems(activity, dockItems.filter { it.isNotBlank() })
 
-        // se veniva dalla home, rimuovi dalla home
+        // rimuovi dalla home se presente
         val homeSlots = Prefs.homeSlotsFlow(activity).first()
         val filtered = homeSlots.filter { it.packageName != pkg }
         if (filtered.size != homeSlots.size) {
