@@ -2,26 +2,20 @@ package com.simplylauncher
 
 import android.content.ClipData
 import android.content.ClipDescription
-import android.graphics.Color
 import android.view.DragEvent
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewConfiguration
-import android.widget.FrameLayout
 import android.widget.Toast
 
 /**
  * Coordina il flusso long-press → drag → drop.
  *
- * - Long-press: viene memorizzato un "pending drag" con la view anchor
- * - ACTION_MOVE oltre soglia: parte il drag vero e proprio
- * - ACTION_UP senza superare la soglia: mostra il popup menu contestuale
- *
- * Le soglie sono in dp, convertite in px in base alla densità.
+ * NOTA: non usa setOnTouchListener sul root (i RecyclerView consumano i touch).
+ * Invece espone onInterceptTouch() che va chiamato da dispatchTouchEvent
+ * dell'Activity, che riceve TUTTI i touch prima dei figli.
  */
 class DragController(
     private val activity: HomeActivity,
-    private val rootView: View,
     private val homeRecyclerView: View,
     private val drawerOverlay: View,
     private val onDropOnHome: (pkg: String, x: Float, y: Float) -> Boolean,
@@ -30,12 +24,9 @@ class DragController(
 ) {
 
     companion object {
-        // Soglia generosa per evitare partenze accidentali (24dp)
         private const val DRAG_THRESHOLD_DP = 24f
-        // Durata fade cassetto
         private const val DRAWER_FADE_MS = 300L
 
-        // Sorgente corrente del drag
         const val SOURCE_DRAWER = "DRAWER"
         const val SOURCE_HOME = "HOME"
         const val SOURCE_DOCK = "DOCK"
@@ -43,76 +34,71 @@ class DragController(
 
     private val thresholdPx = DRAG_THRESHOLD_DP * activity.resources.displayMetrics.density
 
-    // Stato del pending drag (long-press avvenuto, ma drag non ancora partito)
     private var pendingApp: AppInfo? = null
     private var pendingAnchor: View? = null
     private var pendingSource: String? = null
-    private var pendingStartX = 0f
-    private var pendingStartY = 0f
+    private var pendingStartRawX = 0f
+    private var pendingStartRawY = 0f
     private var pendingFromDrawer = false
 
-    // Flag: stiamo gestendo un drag vero e proprio?
     private var isDragging = false
 
-    /**
-     * Chiamato dagli adapter quando avviene un long-press.
-     * Registra il pending drag e si mette in ascolto dei movimenti sul root.
-     */
     fun onLongPress(app: AppInfo, anchor: View, source: String, fromDrawer: Boolean) {
-        // se c'è già un pending, ignora
-        if (pendingApp != null || isDragging) return
-
+        if (isDragging) return
         pendingApp = app
         pendingAnchor = anchor
         pendingSource = source
         pendingFromDrawer = fromDrawer
-
-        // coordinate iniziali: ricavate dalla view
-        val loc = IntArray(2)
-        anchor.getLocationOnScreen(loc)
-        pendingStartX = loc[0] + anchor.width / 2f
-        pendingStartY = loc[1] + anchor.height / 2f
+        pendingStartRawX = -1f
+        pendingStartRawY = -1f
     }
 
     /**
-     * Da collegare a rootView.setOnTouchListener (o dispatchTouchEvent).
-     * Gestisce SOLO il caso "pending drag in corso".
+     * Da chiamare da Activity.dispatchTouchEvent PRIMA di super.dispatchTouchEvent.
+     * Ritorna true se l'evento è stato consumato (per evitare che il RecyclerView scrolli).
      */
-    fun onTouchEvent(event: MotionEvent): Boolean {
+    fun onInterceptTouch(event: MotionEvent): Boolean {
         val app = pendingApp ?: return false
+        val anchor = pendingAnchor ?: return false
+        val source = pendingSource ?: return false
 
         when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                // se arriva un nuovo DOWN prima che parta il drag, annulla il pending
+                // (non dovrebbe succedere ma sicurezza)
+                pendingStartRawX = event.rawX
+                pendingStartRawY = event.rawY
+                return false
+            }
+
             MotionEvent.ACTION_MOVE -> {
-                val dx = event.rawX - pendingStartX
-                val dy = event.rawY - pendingStartY
+                // inizializza il punto di partenza al primo MOVE (il long-press
+                // è già avvenuto, il dito è fermo sopra la view)
+                if (pendingStartRawX < 0f) {
+                    pendingStartRawX = event.rawX
+                    pendingStartRawY = event.rawY
+                    return false
+                }
+                val dx = event.rawX - pendingStartRawX
+                val dy = event.rawY - pendingStartRawY
                 val dist = Math.hypot(dx.toDouble(), dy.toDouble()).toFloat()
                 if (dist > thresholdPx) {
-                    startDrag(app)
+                    startDrag(app, anchor, source)
                     return true
                 }
             }
+
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                // l'utente ha rilasciato senza superare la soglia:
-                // mostra il popup contestuale
-                val anchor = pendingAnchor
-                val source = pendingSource
-                val fd = pendingFromDrawer
-                if (anchor != null && source != null) {
-                    onLongPressWithoutMove(app, anchor, fd)
-                }
+                // rilasciato senza muoversi oltre soglia → popup
+                onLongPressWithoutMove(app, anchor, pendingFromDrawer)
                 clearPending()
+                return true
             }
         }
         return false
     }
 
-    /**
-     * Avvia il drag vero e proprio.
-     */
-    private fun startDrag(app: AppInfo) {
-        val anchor = pendingAnchor ?: return
-        val source = pendingSource ?: SOURCE_HOME
-
+    private fun startDrag(app: AppInfo, anchor: View, source: String) {
         val clip = ClipData.newPlainText(source, app.packageName)
         val shadow = View.DragShadowBuilder(anchor)
         val started = anchor.startDragAndDrop(clip, shadow, null, 0)
@@ -125,55 +111,32 @@ class DragController(
 
         isDragging = true
 
-        // fade del cassetto se il drag parte dal drawer
         if (source == SOURCE_DRAWER) {
-            drawerOverlay.animate()
-                .alpha(0.2f)
-                .setDuration(DRAWER_FADE_MS)
-                .start()
-            drawerOverlay.alpha = 0.2f
+            drawerOverlay.animate().alpha(0.2f).setDuration(DRAWER_FADE_MS).start()
         }
 
         clearPending()
     }
 
-    /**
-     * Da collegare a ACTION_DRAG_ENDED di home e drawer.
-     * Ripristina lo stato grafico.
-     */
     fun onDragEnded() {
         isDragging = false
         if (pendingFromDrawer) {
-            drawerOverlay.animate()
-                .alpha(1f)
-                .setDuration(DRAWER_FADE_MS)
-                .start()
+            drawerOverlay.animate().alpha(1f).setDuration(DRAWER_FADE_MS).start()
+        } else {
             drawerOverlay.alpha = 1f
         }
     }
 
-    /**
-     * Gestisce ACTION_DROP sulla home.
-     * Chiama onDropOnHome con coordinate relative al RecyclerView.
-     */
     fun handleHomeDragEvent(event: DragEvent): Boolean {
         when (event.action) {
-            DragEvent.ACTION_DRAG_STARTED -> {
+            DragEvent.ACTION_DRAG_STARTED ->
                 return event.clipDescription.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN)
-            }
+
             DragEvent.ACTION_DROP -> {
                 val pkg = event.clipData.getItemAt(0).text.toString()
-                val source = event.clipData.description.label?.toString() ?: ""
-                // coordinate relative alla home
-                val child = homeRecyclerView.findViewWithTag<View>(pkg)
-                // delega alla HomeActivity
-                val handled = onDropOnHome(pkg, event.x, event.y)
-                // ripristina fade drawer
-                if (source == SOURCE_DRAWER) {
-                    drawerOverlay.alpha = 1f
-                }
-                return handled
+                return onDropOnHome(pkg, event.x, event.y)
             }
+
             DragEvent.ACTION_DRAG_ENDED -> {
                 onDragEnded()
                 return true
@@ -182,15 +145,11 @@ class DragController(
         return false
     }
 
-    /**
-     * Gestisce ACTION_DROP sul cassetto.
-     * Usato per rimuovere un'app dalla home trascinandola sul drawer.
-     */
     fun handleDrawerDragEvent(event: DragEvent): Boolean {
         when (event.action) {
-            DragEvent.ACTION_DRAG_STARTED -> {
+            DragEvent.ACTION_DRAG_STARTED ->
                 return event.clipDescription.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN)
-            }
+
             DragEvent.ACTION_DROP -> {
                 val pkg = event.clipData.getItemAt(0).text.toString()
                 val source = event.clipData.description.label?.toString() ?: ""
@@ -199,6 +158,7 @@ class DragController(
                 }
                 return true
             }
+
             DragEvent.ACTION_DRAG_ENDED -> {
                 onDragEnded()
                 return true
@@ -212,5 +172,7 @@ class DragController(
         pendingAnchor = null
         pendingSource = null
         pendingFromDrawer = false
+        pendingStartRawX = -1f
+        pendingStartRawY = -1f
     }
 }
