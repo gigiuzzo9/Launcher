@@ -14,6 +14,7 @@ class AppContextMenuView(private val ctx: Context) {
     var onUninstall: (() -> Unit)? = null
     var onRename: (() -> Unit)? = null
     var onRemove: (() -> Unit)? = null
+    var onMove: (() -> Unit)? = null
     var onDismiss: (() -> Unit)? = null
 
     private var popupWindow: PopupWindow? = null
@@ -29,14 +30,25 @@ class AppContextMenuView(private val ctx: Context) {
             background = drawable
         }
 
+        // Sposta (sempre presente)
+        container.addView(createMenuItem(ctx.getString(R.string.menu_move)) {
+            onMove?.invoke()
+            dismiss()
+        })
+
+        // Disinstalla
         container.addView(createMenuItem(ctx.getString(R.string.menu_uninstall)) {
             onUninstall?.invoke()
             dismiss()
         })
+
+        // Rinomina
         container.addView(createMenuItem(ctx.getString(R.string.menu_rename)) {
             onRename?.invoke()
             dismiss()
         })
+
+        // Rimuovi (solo se showRemove)
         if (showRemove) {
             container.addView(createMenuItem(ctx.getString(R.string.menu_remove)) {
                 onRemove?.invoke()
