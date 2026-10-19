@@ -76,7 +76,7 @@ class HomeActivity : AppCompatActivity() {
 
         adapter = AppAdapter(
             onClick = { app -> AppRepository.launchApp(this, app.packageName) },
-            onLongPress = { app, view, x, y -> showContextMenu(app, view, x, y) },
+            onLongPress = { app, view, x, y -> showContextMenu(app, view) },
             onMoveAfterLongPress = { app, view -> startDrag(app, view) }
         )
         homeRecyclerView.adapter = adapter
@@ -99,7 +99,7 @@ class HomeActivity : AppCompatActivity() {
                 AppRepository.launchApp(this, app.packageName)
                 closeDrawer()
             },
-            onLongPress = { app, view, x, y -> showContextMenu(app, view, x, y) },
+            onLongPress = { app, view, x, y -> showContextMenu(app, view) },
             onMoveAfterLongPress = { app, view -> startDrag(app, view) }
         )
         drawerRecyclerView.adapter = drawerAdapter
@@ -133,11 +133,6 @@ class HomeActivity : AppCompatActivity() {
 
     private fun setupContextMenu() {
         contextMenuView = AppContextMenuView(this)
-        val params = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT
-        )
-        addContentView(contextMenuView, params)
 
         contextMenuView.onUninstall = {
             currentApp?.let { app ->
@@ -178,17 +173,14 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun showContextMenu(app: AppInfo, anchor: View, x: Float, y: Float) {
+    private fun showContextMenu(app: AppInfo, anchor: View) {
         currentApp = app
-        // Mostra il menu AL CENTRO dello schermo
-        val screenWidth = resources.displayMetrics.widthPixels
-        val screenHeight = resources.displayMetrics.heightPixels
-        contextMenuView.show(screenWidth / 2f, screenHeight / 2f)
+        contextMenuView.show(anchor)
     }
 
     private fun startDrag(app: AppInfo, view: View) {
         if (contextMenuView.isShowing()) {
-            contextMenuView.hide()
+            contextMenuView.dismiss()
         }
 
         val clip = ClipData.newPlainText("package", app.packageName)
@@ -219,7 +211,6 @@ class HomeActivity : AppCompatActivity() {
                     addToDock(pkg)
                 } else if (isHomeGrid) {
                     val cols = getCurrentCols()
-                    val lm = homeRecyclerView.layoutManager as? GridLayoutManager
                     val cellWidth = homeRecyclerView.width / cols.toFloat()
                     val cellHeight = homeRecyclerView.height / 6f
                     val col = (event.x / cellWidth).toInt().coerceIn(0, cols - 1)
@@ -420,7 +411,7 @@ class HomeActivity : AppCompatActivity() {
                         AppRepository.launchApp(this@HomeActivity, app.packageName)
                     }
                     slot.setOnLongClickListener { view ->
-                        showContextMenu(app, view, view.x, view.y)
+                        showContextMenu(app, view)
                         true
                     }
                 }
