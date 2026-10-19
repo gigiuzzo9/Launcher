@@ -8,24 +8,26 @@ import android.view.View
 import android.widget.Toast
 
 /**
- * Coordina il flusso long-press → drag → drop.
+ * Coordina il flusso long-press → popup → drag → drop.
  *
- * NOTA: non usa setOnTouchListener sul root (i RecyclerView consumano i touch).
- * Invece espone onInterceptTouch() che va chiamato da dispatchTouchEvent
- * dell'Activity, che riceve TUTTI i touch prima dei figli.
+ * - Long-press: mostra SUBITO il popup contestuale
+ * - ACTION_MOVE oltre soglia: chiude il popup e avvia il drag
+ * - ACTION_UP senza superare la soglia: il popup resta aperto
+ *
+ * Va chiamato da Activity.dispatchTouchEvent tramite onInterceptTouch,
+ * perché i RecyclerView consumano i touch prima dei parent.
  */
 class DragController(
     private val activity: HomeActivity,
     private val homeRecyclerView: View,
     private val drawerOverlay: View,
     private val onDropOnHome: (pkg: String, x: Float, y: Float) -> Boolean,
-    private val onDropOnDrawer: (pkg: String) -> Unit,
-    private val onLongPressWithoutMove: (AppInfo, View, Boolean) -> Unit
+    private val onDropOnDrawer: (pkg: String) -> Unit
 ) {
 
     companion object {
         private const val DRAG_THRESHOLD_DP = 24f
-        private const val DRAWER_FADE_MS = 300L
+        private const val DRAWER_FADE_MS = 200L
 
         const val SOURCE_DRAWER = "DRAWER"
         const val SOURCE_HOME = "HOME"
@@ -37,12 +39,16 @@ class DragController(
     private var pendingApp: AppInfo? = null
     private var pendingAnchor: View? = null
     private var pendingSource: String? = null
-    private var pendingStartRawX = 0f
-    private var pendingStartRawY = 0f
     private var pendingFromDrawer = false
+    private var pendingStartRawX = -1f
+    private var pendingStartRawY = -1f
 
     private var isDragging = false
 
+    /**
+     * Chiamato dagli adapter al long-press.
+     * Mostra subito il popup contestuale e registra il pending per il drag.
+     */
     fun onLongPress(app: AppInfo, anchor: View, source: String, fromDrawer: Boolean) {
         if (isDragging) return
         pendingApp = app
@@ -51,11 +57,14 @@ class DragController(
         pendingFromDrawer = fromDrawer
         pendingStartRawX = -1f
         pendingStartRawY = -1f
+
+        // mostra SUBITO il popup contestuale
+        activity.showContextMenuForDrag(app, anchor, fromDrawer)
     }
 
     /**
      * Da chiamare da Activity.dispatchTouchEvent PRIMA di super.dispatchTouchEvent.
-     * Ritorna true se l'evento è stato consumato (per evitare che il RecyclerView scrolli).
+     * Ritorna true se l'evento è stato consumato (per evitare scroll del RecyclerView).
      */
     fun onInterceptTouch(event: MotionEvent): Boolean {
         val app = pendingApp ?: return false
@@ -64,16 +73,14 @@ class DragController(
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                // se arriva un nuovo DOWN prima che parta il drag, annulla il pending
-                // (non dovrebbe succedere ma sicurezza)
-                pendingStartRawX = event.rawX
-                pendingStartRawY = event.rawY
+                if (pendingStartRawX < 0f) {
+                    pendingStartRawX = event.rawX
+                    pendingStartRawY = event.rawY
+                }
                 return false
             }
 
             MotionEvent.ACTION_MOVE -> {
-                // inizializza il punto di partenza al primo MOVE (il long-press
-                // è già avvenuto, il dito è fermo sopra la view)
                 if (pendingStartRawX < 0f) {
                     pendingStartRawX = event.rawX
                     pendingStartRawY = event.rawY
@@ -83,16 +90,17 @@ class DragController(
                 val dy = event.rawY - pendingStartRawY
                 val dist = Math.hypot(dx.toDouble(), dy.toDouble()).toFloat()
                 if (dist > thresholdPx) {
+                    // chiudi il popup e avvia il drag
+                    activity.dismissDragPopup()
                     startDrag(app, anchor, source)
                     return true
                 }
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                // rilasciato senza muoversi oltre soglia → popup
-                onLongPressWithoutMove(app, anchor, pendingFromDrawer)
+                // rilascio senza muoversi: lascia il popup aperto (già mostrato)
                 clearPending()
-                return true
+                return false
             }
         }
         return false
@@ -112,7 +120,8 @@ class DragController(
         isDragging = true
 
         if (source == SOURCE_DRAWER) {
-            drawerOverlay.animate().alpha(0.2f).setDuration(DRAWER_FADE_MS).start()
+            // chiudi il cassetto e mostra la home
+            activity.onDragFromDrawerStarted()
         }
 
         clearPending()
@@ -121,10 +130,9 @@ class DragController(
     fun onDragEnded() {
         isDragging = false
         if (pendingFromDrawer) {
-            drawerOverlay.animate().alpha(1f).setDuration(DRAWER_FADE_MS).start()
-        } else {
-            drawerOverlay.alpha = 1f
+            activity.onDragFromDrawerEnded()
         }
+        pendingFromDrawer = false
     }
 
     fun handleHomeDragEvent(event: DragEvent): Boolean {
