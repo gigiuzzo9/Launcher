@@ -52,7 +52,6 @@ class HomeActivity : AppCompatActivity() {
     private var currentCols = 4
     private var currentRows = 6
     private var isDropInProgress = false
-    private var isGridAdjusted = false
 
     private val reloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -119,18 +118,15 @@ class HomeActivity : AppCompatActivity() {
             RECEIVER_NOT_EXPORTED
         )
 
-        // adatta l'altezza delle celle dopo che il layout è pronto
-        homeRecyclerView.post { adjustGridLayout() }
-        dockLayout.post { adjustGridLayout() }
+        // padding bottom dinamico in base all'altezza reale della dock
+        dockLayout.post { updateRecyclerPadding() }
+        homeRecyclerView.post { updateRecyclerPadding() }
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        // 1) drag controller
         if (::dragController.isInitialized && dragController.onInterceptTouch(ev)) {
             return true
         }
-
-        // 2) popup aperto: chiudi se tocchi fuori
         if (::contextMenuView.isInitialized && contextMenuView.isShowing()) {
             if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
                 if (!contextMenuView.isPointInside(ev.rawX, ev.rawY)) {
@@ -140,7 +136,6 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
         }
-
         return super.dispatchTouchEvent(ev)
     }
 
@@ -384,9 +379,6 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    fun getCurrentRows(): Int = currentRows
-    fun getCurrentCols(): Int = currentCols
-
     // ─────────────────────────────────────────────────────────────
     // DROP
     // ─────────────────────────────────────────────────────────────
@@ -427,7 +419,6 @@ class HomeActivity : AppCompatActivity() {
         val targetSlot = currentList[targetPos]
 
         if (sourceIndex == -1) {
-            // app che viene da FUORI (dock o drawer)
             currentList[targetPos] = HomeSlot(pkg, targetSlot.row, targetSlot.col)
             homeAdapter.submitList(currentList)
 
@@ -449,7 +440,6 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
         } else {
-            // app che viene dalla HOME: swap
             val sourceSlot = currentList[sourceIndex]
             currentList[sourceIndex] = HomeSlot(targetSlot.packageName, sourceSlot.row, sourceSlot.col)
             currentList[targetPos] = HomeSlot(pkg, targetSlot.row, targetSlot.col)
@@ -486,28 +476,16 @@ class HomeActivity : AppCompatActivity() {
     }
 
     // ─────────────────────────────────────────────────────────────
-    // GRIGLIA ADATTIVA
+    // GRIGLIA: solo padding bottom dinamico (NON altezza celle)
     // ─────────────────────────────────────────────────────────────
 
-    /**
-     * Calcola l'altezza disponibile per la griglia (sottraendo dock e padding),
-     * la divide per currentRows e imposta l'altezza delle celle.
-     */
-    private fun adjustGridLayout() {
-        if (homeRecyclerView.height == 0) return
-        val rows = currentRows
-        if (rows <= 0) return
-
-        // calcola altezza dock + margine
+    private fun updateRecyclerPadding() {
         val dockHeight = if (dockLayout.height > 0) {
             dockLayout.height + (10 * resources.displayMetrics.density).toInt()
         } else {
             (90 * resources.displayMetrics.density).toInt()
         }
-
-        // aggiorna il padding bottom del RecyclerView per non finire sotto la dock
-        val currentPaddingBottom = homeRecyclerView.paddingBottom
-        if (currentPaddingBottom != dockHeight) {
+        if (homeRecyclerView.paddingBottom != dockHeight) {
             homeRecyclerView.setPadding(
                 homeRecyclerView.paddingLeft,
                 homeRecyclerView.paddingTop,
@@ -515,23 +493,6 @@ class HomeActivity : AppCompatActivity() {
                 dockHeight
             )
         }
-
-        val availableHeight = homeRecyclerView.height - homeRecyclerView.paddingTop - dockHeight
-        if (availableHeight <= 0) return
-
-        val cellHeight = availableHeight / rows
-        if (cellHeight <= 0) return
-
-        // applica a tutte le view figlie
-        for (i in 0 until homeRecyclerView.childCount) {
-            val child = homeRecyclerView.getChildAt(i)
-            val lp = child.layoutParams
-            if (lp.height != cellHeight) {
-                lp.height = cellHeight
-                child.layoutParams = lp
-            }
-        }
-        isGridAdjusted = true
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -558,9 +519,7 @@ class HomeActivity : AppCompatActivity() {
                 slots.firstOrNull { it.row == row && it.col == col }
                     ?: HomeSlot("", row, col)
             }
-            homeAdapter.submitList(fullList) {
-                homeRecyclerView.post { adjustGridLayout() }
-            }
+            homeAdapter.submitList(fullList)
 
             if (!drawerOpen) {
                 if (slots.isEmpty()) {
@@ -640,7 +599,7 @@ class HomeActivity : AppCompatActivity() {
             loadHomeApps()
             dockController.refresh()
             loadDrawerApps()
-            homeRecyclerView.post { adjustGridLayout() }
+            homeRecyclerView.post { updateRecyclerPadding() }
         }
     }
 
