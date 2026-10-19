@@ -51,10 +51,10 @@ class AppContextMenuView(private val ctx: Context) {
             container,
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT,
-            false   // ← NON focusable
+            true
         ).apply {
             isOutsideTouchable = true
-            isFocusable = false
+            isFocusable = true
             setOnDismissListener {
                 onDismiss?.invoke()
             }
