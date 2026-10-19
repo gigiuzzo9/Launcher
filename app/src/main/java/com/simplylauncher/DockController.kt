@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 /**
  * Gestisce i 4 slot della dock.
  * Ogni slot è un target di drop indipendente.
+ * Espone anche metodi pubblici usati da HomeActivity (drop sul container).
  */
 class DockController(
     private val activity: HomeActivity,
@@ -85,20 +86,8 @@ class DockController(
 
                 activity.lifecycleScope.launch {
                     if (source == DragController.SOURCE_DOCK) {
-                        // riordino dock: swap tra slot
-                        val dockItems = Prefs.dockItemsFlow(activity).first().toMutableList()
-                        while (dockItems.size < 4) dockItems.add("")
-                        val fromIndex = dockItems.indexOf(pkg)
-                        if (fromIndex != -1 && fromIndex != slotIndex) {
-                            val a = dockItems[fromIndex]
-                            val b = dockItems[slotIndex]
-                            dockItems[fromIndex] = b
-                            dockItems[slotIndex] = a
-                            Prefs.setDockItems(activity, dockItems)
-                            refresh()
-                        }
+                        swapDockSlots(pkg, slotIndex)
                     } else {
-                        // da HOME o DRAWER: metti nello slot
                         addToDockAt(pkg, slotIndex)
                     }
                 }
@@ -111,6 +100,32 @@ class DockController(
             }
         }
         return false
+    }
+
+    /**
+     * Swap tra due slot della dock (riordino).
+     */
+    suspend fun swapDockSlots(pkg: String, slotIndex: Int) {
+        val dockItems = Prefs.dockItemsFlow(activity).first().toMutableList()
+        while (dockItems.size < 4) dockItems.add("")
+
+        val fromIndex = dockItems.indexOf(pkg)
+        if (fromIndex != -1 && fromIndex != slotIndex) {
+            val a = dockItems[fromIndex]
+            val b = dockItems[slotIndex]
+            dockItems[fromIndex] = b
+            dockItems[slotIndex] = a
+            Prefs.setDockItems(activity, dockItems)
+            refresh()
+        }
+    }
+
+    /**
+     * Pubblico: usato da HomeActivity quando il drop avviene sul container
+     * e non su uno slot specifico. Trova lo slot e ci droppa.
+     */
+    suspend fun addToDockAtPublic(pkg: String, slotIndex: Int) {
+        addToDockAt(pkg, slotIndex)
     }
 
     private suspend fun addToDockAt(pkg: String, slotIndex: Int) {
@@ -133,7 +148,6 @@ class DockController(
             if (freeIndex != -1) {
                 dockItems[freeIndex] = previousOccupant
             }
-            // altrimenti l'occupante viene scartato (dock pieno)
         }
 
         Prefs.setDockItems(activity, dockItems)
