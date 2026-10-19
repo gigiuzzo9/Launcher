@@ -16,6 +16,7 @@ import android.view.animation.AnimationUtils
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
 import androidx.lifecycle.lifecycleScope
@@ -330,7 +331,7 @@ class HomeActivity : AppCompatActivity() {
         homePopupMenu = HomePopupMenu(this)
 
         homePopupMenu.onAddWidget = {
-            // TODO: implementare selezione widget
+            Toast.makeText(this, "Aggiungi widget: in arrivo", Toast.LENGTH_SHORT).show()
         }
 
         homePopupMenu.onAddPage = {
@@ -357,6 +358,11 @@ class HomeActivity : AppCompatActivity() {
                     val slots = Prefs.homeSlotsFlow(this@HomeActivity).first()
                     val itemsOnPage = slots.count { it.page == currentPageIndex }
                     if (itemsOnPage > 0) {
+                        Toast.makeText(
+                            this@HomeActivity,
+                            "La pagina non è vuota",
+                            Toast.LENGTH_SHORT
+                        ).show()
                         return@launch
                     }
                     val newSlots = slots.map {
@@ -403,8 +409,8 @@ class HomeActivity : AppCompatActivity() {
                     dragController.onLongPress(app, view, DragController.SOURCE_HOME, false)
                 }
             },
-            onEmptyCellClick = {
-                showHomePopup()
+            onEmptyCellLongPress = { view ->
+                showHomePopup(view)
             },
             onPageCreated = { page, recycler ->
                 setupRecyclerTouchHelper(recycler)
@@ -443,8 +449,7 @@ class HomeActivity : AppCompatActivity() {
         helper.attachToRecyclerView(recycler)
     }
 
-    private fun showHomePopup() {
-        val anchor = findViewById<View>(android.R.id.content)
+    private fun showHomePopup(anchor: View) {
         homePopupMenu.show(anchor, showRemovePage = currentPageCount > 1)
     }
 
@@ -489,7 +494,6 @@ class HomeActivity : AppCompatActivity() {
         if (!::homePagerAdapter.isInitialized) return
         if (homeViewPager.height == 0 || currentRows <= 0) return
 
-        // altezza del recycler della pagina corrente
         val recycler = homePagerAdapter.getRecycler(homeViewPager.currentItem) ?: return
         if (recycler.height == 0) return
 
