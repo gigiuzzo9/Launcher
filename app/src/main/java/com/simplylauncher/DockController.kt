@@ -1,160 +1,102 @@
 package com.simplylauncher
 
-import android.graphics.Color
-import android.view.DragEvent
-import android.view.Gravity
+import android.view.LayoutInflater
 import android.view.View
-import android.widget.FrameLayout
+import android.view.ViewGroup
 import android.widget.ImageView
-import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
+import android.widget.TextView
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
 
-/**
- * Gestisce i 4 slot della dock.
- * Ogni slot è un target di drop indipendente.
- */
-class DockController(
-    private val activity: HomeActivity,
-    private val slots: List<FrameLayout>,
-    private val onAppLongPressed: (AppInfo, View) -> Unit
-) {
-    private val highlightColor = Color.parseColor("#33FFFFFF")
+class HomeGridAdapter(
+    private val onClick: (HomeSlot) -> Unit,
+    private val onLongPress: (HomeSlot, View) -> Unit
+) : ListAdapter<HomeSlot, HomeGridAdapter.SlotViewHolder>(DiffCallback()) {
 
-    fun setup() {
-        slots.forEachIndexed { index, slot ->
-            slot.setOnDragListener { _, event -> handleSlotDrop(event, index) }
+    /** Altezza in pixel di ogni cella. 0 = non ancora calcolata. */
+    private var cellHeight: Int = 0
+
+    fun setCellHeight(height: Int) {
+        if (cellHeight != height) {
+            cellHeight = height
+            notifyDataSetChanged()
         }
     }
 
-    fun refresh() {
-        activity.lifecycleScope.launch {
-            val dockItems = Prefs.dockItemsFlow(activity).first()
-            val allApps = AppRepository.loadInstalledAppsWithCustomLabels(activity)
-            val byPkg = allApps.associateBy { it.packageName }
+    /** Usato da HomeActivity per stimare la posizione di drop fuori dagli item. */
+    fun getCellHeightSafe(): Int = cellHeight
 
-            slots.forEachIndexed { index, slot ->
-                slot.removeAllViews()
-                val pkg = dockItems.getOrNull(index)
-                val app = if (pkg.isNullOrBlank()) null else byPkg[pkg]
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SlotViewHolder {
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_app, parent, false)
+        return SlotViewHolder(view)
+    }
 
-                if (app != null) {
-                    val imageView = ImageView(activity).apply {
-                        setImageDrawable(app.icon)
-                        val size = (62 * resources.displayMetrics.density).toInt()
-                        layoutParams = FrameLayout.LayoutParams(size, size).apply {
-                            gravity = Gravity.CENTER
-                        }
-                    }
-                    slot.addView(imageView)
-                    slot.setOnClickListener {
-                        AppRepository.launchApp(activity, app.packageName)
-                    }
-                    slot.setOnLongClickListener { view ->
-                        onAppLongPressed(app, view)
-                        true
-                    }
-                } else {
-                    slot.setOnClickListener(null)
-                    slot.setOnLongClickListener(null)
+    override fun onBindViewHolder(holder: SlotViewHolder, position: Int) {
+        holder.bind(getItem(position))
+    }
+
+    fun swap(from: Int, to: Int): Boolean {
+        val current = currentList.toMutableList()
+        if (from !in current.indices || to !in current.indices) return false
+        val a = current[from]
+        val b = current[to]
+        current[from] = a.copy(row = b.row, col = b.col)
+        current[to] = b.copy(row = a.row, col = a.col)
+        submitList(current)
+        return true
+    }
+
+    inner class SlotViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+        private val icon: ImageView = itemView.findViewById(R.id.appIcon)
+        private val label: TextView = itemView.findViewById(R.id.appLabel)
+
+        fun bind(slot: HomeSlot) {
+            if (cellHeight > 0) {
+                val lp = itemView.layoutParams
+                if (lp.height != cellHeight) {
+                    lp.height = cellHeight
+                    itemView.layoutParams = lp
                 }
             }
-        }
-    }
 
-    private fun handleSlotDrop(event: DragEvent, slotIndex: Int): Boolean {
-        when (event.action) {
-            DragEvent.ACTION_DRAG_STARTED -> {
-                return event.clipDescription.hasMimeType(android.content.ClipDescription.MIMETYPE_TEXT_PLAIN)
-            }
-
-            DragEvent.ACTION_DRAG_ENTERED -> {
-                slots[slotIndex].setBackgroundColor(highlightColor)
-                return true
-            }
-
-            DragEvent.ACTION_DRAG_EXITED -> {
-                slots[slotIndex].setBackgroundColor(Color.TRANSPARENT)
-                return true
-            }
-
-            DragEvent.ACTION_DROP -> {
-                slots[slotIndex].setBackgroundColor(Color.TRANSPARENT)
-                val pkg = event.clipData.getItemAt(0).text.toString()
-                val source = event.clipData.description.label?.toString() ?: ""
-
-                activity.lifecycleScope.launch {
-                    if (source == DragController.SOURCE_DOCK) {
-                        swapDockSlots(pkg, slotIndex)
-                    } else {
-                        addToDockAt(pkg, slotIndex)
-                    }
+            val app = AppCache.get(itemView.context, slot.packageName)
+            if (app != null) {
+                icon.setImageDrawable(app.icon)
+                label.text = app.label
+                itemView.visibility = View.VISIBLE
+                itemView.setOnClickListener { onClick(slot) }
+                itemView.setOnLongClickListener { view ->
+                    onLongPress(slot, view)
+                    true
                 }
-                return true
+            } else {
+                icon.setImageDrawable(null)
+                label.text = ""
+                itemView.visibility = View.INVISIBLE
+                itemView.setOnClickListener(null)
+                itemView.setOnLongClickListener(null)
             }
-
-            DragEvent.ACTION_DRAG_ENDED -> {
-                slots[slotIndex].setBackgroundColor(Color.TRANSPARENT)
-                return true
-            }
-        }
-        return false
-    }
-
-    /**
-     * Swap tra due slot della dock (riordino).
-     */
-    suspend fun swapDockSlots(pkg: String, slotIndex: Int) {
-        val dockItems = Prefs.dockItemsFlow(activity).first().toMutableList()
-        while (dockItems.size < 4) dockItems.add("")
-
-        val fromIndex = dockItems.indexOf(pkg)
-        if (fromIndex != -1 && fromIndex != slotIndex) {
-            val a = dockItems[fromIndex]
-            val b = dockItems[slotIndex]
-            dockItems[fromIndex] = b
-            dockItems[slotIndex] = a
-            Prefs.setDockItems(activity, dockItems)
-            refresh()
         }
     }
 
-    /**
-     * Pubblico: usato da HomeActivity quando il drop avviene sul container
-     * e non su uno slot specifico.
-     */
-    suspend fun addToDockAtPublic(pkg: String, slotIndex: Int) {
-        addToDockAt(pkg, slotIndex)
+    class DiffCallback : DiffUtil.ItemCallback<HomeSlot>() {
+        override fun areItemsTheSame(oldItem: HomeSlot, newItem: HomeSlot): Boolean {
+            return oldItem.row == newItem.row && oldItem.col == newItem.col
+        }
+
+        override fun areContentsTheSame(oldItem: HomeSlot, newItem: HomeSlot): Boolean {
+            return oldItem == newItem
+        }
     }
 
-    private suspend fun addToDockAt(pkg: String, slotIndex: Int) {
-        val dockItems = Prefs.dockItemsFlow(activity).first().toMutableList()
-        while (dockItems.size < 4) dockItems.add("")
-
-        // rimuovi TUTTE le occorrenze del pkg dalla dock (evita duplicati)
-        dockItems.replaceAll { if (it == pkg) "" else it }
-
-        // rimuovi TUTTE le occorrenze dalla home
-        val homeSlots = Prefs.homeSlotsFlow(activity).first()
-        val filtered = homeSlots.filter { it.packageName != pkg }
-        if (filtered.size != homeSlots.size) {
-            Prefs.setHomeSlots(activity, filtered)
-            activity.reloadHomeGrid()
+    object AppCache {
+        private val map = mutableMapOf<String, AppInfo>()
+        fun putAll(apps: List<AppInfo>) {
+            map.clear()
+            apps.forEach { map[it.packageName] = it }
         }
-
-        // metti pkg nella slot target
-        val previousOccupant = dockItems[slotIndex]
-        dockItems[slotIndex] = pkg
-
-        // se la slot era occupata, sposta l'occupante in una slot libera
-        if (previousOccupant.isNotBlank()) {
-            val freeIndex = dockItems.indexOfFirst { it.isBlank() }
-            if (freeIndex != -1) {
-                dockItems[freeIndex] = previousOccupant
-            }
-        }
-
-        Prefs.setDockItems(activity, dockItems)
-        refresh()
+        fun get(context: android.content.Context, pkg: String): AppInfo? = map[pkg]
     }
 }
