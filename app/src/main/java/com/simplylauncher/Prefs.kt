@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore("launcher_prefs")
@@ -16,7 +17,8 @@ object Prefs {
     private val KEY_ALPHA = floatPreferencesKey("bg_alpha")
     private val KEY_COLS = intPreferencesKey("grid_cols")
     private val KEY_ROWS = intPreferencesKey("grid_rows")
-    private val KEY_HOME_ITEMS = stringPreferencesKey("home_items")
+    private val KEY_HOME_ITEMS = stringPreferencesKey("home_items")        // vecchio formato (migrazione)
+    private val KEY_HOME_SLOTS = stringPreferencesKey("home_slots")        // nuovo formato
     private val KEY_DOCK_ITEMS = stringPreferencesKey("dock_items")
     private val KEY_CUSTOM_LABELS = stringPreferencesKey("custom_labels")
 
@@ -32,9 +34,22 @@ object Prefs {
     fun rowsFlow(context: Context): Flow<Int> =
         context.dataStore.data.map { it[KEY_ROWS] ?: 6 }
 
-    fun homeItemsFlow(context: Context): Flow<List<String>> =
+    /**
+     * Legge gli slot della home. Se non esiste ancora il nuovo formato,
+     * migra automaticamente dalla vecchia lista lineare "home_items".
+     */
+    fun homeSlotsFlow(context: Context): Flow<List<HomeSlot>> =
         context.dataStore.data.map { prefs ->
-            prefs[KEY_HOME_ITEMS]?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+            val raw = prefs[KEY_HOME_SLOTS]
+            if (raw != null) {
+                HomeSlot.stringToList(raw)
+            } else {
+                // migrazione da vecchio formato
+                val oldRaw = prefs[KEY_HOME_ITEMS] ?: ""
+                val oldItems = oldRaw.split(",").filter { it.isNotBlank() }
+                val cols = prefs[KEY_COLS] ?: 4
+                HomeSlot.migrateFromLinear(oldItems, cols)
+            }
         }
 
     fun dockItemsFlow(context: Context): Flow<List<String>> =
@@ -68,8 +83,25 @@ object Prefs {
         context.dataStore.edit { it[KEY_ROWS] = rows }
     }
 
+    /**
+     * Salva gli slot della home nel nuovo formato.
+     */
+    suspend fun setHomeSlots(context: Context, slots: List<HomeSlot>) {
+        context.dataStore.edit {
+            it[KEY_HOME_SLOTS] = HomeSlot.listToString(slots)
+            // pulizia vecchio formato per non ri-migrare
+            it.remove(KEY_HOME_ITEMS)
+        }
+    }
+
+    /**
+     * Mantenuto per compatibilità con eventuale codice esistente.
+     * Converte in slot e salva nel nuovo formato.
+     */
     suspend fun setHomeItems(context: Context, items: List<String>) {
-        context.dataStore.edit { it[KEY_HOME_ITEMS] = items.joinToString(",") }
+        val cols = colsFlow(context).first()
+        val slots = HomeSlot.migrateFromLinear(items, cols)
+        setHomeSlots(context, slots)
     }
 
     suspend fun setDockItems(context: Context, items: List<String>) {
