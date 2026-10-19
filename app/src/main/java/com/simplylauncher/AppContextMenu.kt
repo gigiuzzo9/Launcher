@@ -1,53 +1,92 @@
 package com.simplylauncher
 
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.view.Gravity
 import android.view.View
-import android.widget.PopupMenu
+import android.widget.LinearLayout
+import android.widget.TextView
 
-object AppContextMenu {
+class AppContextMenuView(context: Context) : LinearLayout(context) {
 
-    fun show(
-        context: Context,
-        anchor: View,
-        app: AppInfo,
-        isInHome: Boolean,
-        isInDock: Boolean,
-        onRemove: () -> Unit,
-        onRename: () -> Unit
-    ) {
-        val popup = PopupMenu(context, anchor)
-        popup.menu.add(0, 1, 0, context.getString(R.string.menu_uninstall))
-        popup.menu.add(0, 2, 1, context.getString(R.string.menu_rename))
-        if (isInHome || isInDock) {
-            popup.menu.add(0, 3, 2, context.getString(R.string.menu_remove))
-        }
+    var onUninstall: (() -> Unit)? = null
+    var onRename: (() -> Unit)? = null
+    var onRemove: (() -> Unit)? = null
+    var onDismiss: (() -> Unit)? = null
 
-        popup.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                1 -> {
-                    // Disinstalla
-                    val intent = Intent(Intent.ACTION_DELETE).apply {
-                        data = Uri.parse("package:${app.packageName}")
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    context.startActivity(intent)
-                    true
-                }
-                2 -> {
-                    // Rinomina
-                    onRename()
-                    true
-                }
-                3 -> {
-                    // Rimuovi
-                    onRemove()
-                    true
-                }
-                else -> false
+    private val menuContainer: LinearLayout
+
+    init {
+        orientation = VERTICAL
+        gravity = Gravity.CENTER
+        visibility = GONE
+
+        menuContainer = LinearLayout(context).apply {
+            orientation = VERTICAL
+            setPadding(24, 16, 24, 16)
+
+            val drawable = GradientDrawable().apply {
+                cornerRadius = 16f
+                setColor(Color.parseColor("#EE000000"))
             }
+            background = drawable
         }
-        popup.show()
+
+        val uninstallItem = createMenuItem(context.getString(R.string.menu_uninstall)) {
+            onUninstall?.invoke()
+            hide()
+        }
+        val renameItem = createMenuItem(context.getString(R.string.menu_rename)) {
+            onRename?.invoke()
+            hide()
+        }
+        val removeItem = createMenuItem(context.getString(R.string.menu_remove)) {
+            onRemove?.invoke()
+            hide()
+        }
+
+        menuContainer.addView(uninstallItem)
+        menuContainer.addView(renameItem)
+        menuContainer.addView(removeItem)
+
+        addView(menuContainer)
     }
+
+    private fun createMenuItem(text: String, onClick: () -> Unit): TextView {
+        return TextView(context).apply {
+            this.text = text
+            setTextColor(Color.WHITE)
+            textSize = 16f
+            setPadding(32, 24, 32, 24)
+            setOnClickListener { onClick() }
+        }
+    }
+
+    fun show(x: Float, y: Float) {
+        visibility = VISIBLE
+        bringToFront()
+
+        post {
+            val screenWidth = resources.displayMetrics.widthPixels
+            val screenHeight = resources.displayMetrics.heightPixels
+            val menuWidth = menuContainer.width
+            val menuHeight = menuContainer.height
+
+            if (menuWidth == 0 || menuHeight == 0) return@post
+
+            val finalX = x.coerceIn(0f, (screenWidth - menuWidth).toFloat())
+            val finalY = y.coerceIn(0f, (screenHeight - menuHeight).toFloat())
+
+            menuContainer.x = finalX
+            menuContainer.y = finalY
+        }
+    }
+
+    fun hide() {
+        visibility = GONE
+        onDismiss?.invoke()
+    }
+
+    fun isShowing(): Boolean = visibility == VISIBLE
 }
