@@ -113,7 +113,6 @@ class HomeActivity : AppCompatActivity() {
 
         appWidgetManager = AppWidgetManager.getInstance(this)
         appWidgetHost = AppWidgetHost(this, widgetHostId)
-        appWidgetHost.startListening()
 
         setupHomePager()
         setupDragController()
@@ -159,6 +158,16 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        appWidgetHost.startListening()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        try { appWidgetHost.stopListening() } catch (_: Exception) {}
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         when (requestCode) {
@@ -196,7 +205,9 @@ class HomeActivity : AppCompatActivity() {
                     putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingWidgetId)
                 }
                 startActivityForResult(intent, REQUEST_CONFIGURE_WIDGET)
-            } else saveWidgetToHome()
+            } else {
+                saveWidgetToHome()
+            }
         } else {
             val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingWidgetId)
@@ -221,7 +232,12 @@ class HomeActivity : AppCompatActivity() {
             )
             Prefs.setWidgetSlots(this@HomeActivity, widgets)
             Toast.makeText(this@HomeActivity, R.string.widget_added, Toast.LENGTH_SHORT).show()
-            renderWidgets()
+
+            homeViewPager.post {
+                homeViewPager.post {
+                    renderWidgets()
+                }
+            }
         }
     }
 
@@ -279,6 +295,11 @@ class HomeActivity : AppCompatActivity() {
             val widgets = Prefs.widgetSlotsFlow(this@HomeActivity).first()
             val recycler = homePagerAdapter.getRecycler(homeViewPager.currentItem) ?: return@launch
             val overlay = homePagerAdapter.getOverlay(homeViewPager.currentItem) ?: return@launch
+
+            if (recycler.width == 0 || recycler.height == 0) {
+                homeViewPager.postDelayed({ renderWidgets() }, 100)
+                return@launch
+            }
 
             overlay.removeAllViews()
 
@@ -856,23 +877,4 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        try { unregisterReceiver(reloadReceiver) } catch (_: Exception) {}
-        try { appWidgetHost.stopListening() } catch (_: Exception) {}
-    }
-
-    private fun askLauncherIfNeeded() {
-        val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-        val res = packageManager.resolveActivity(homeIntent, 0)
-        if (res?.activityInfo?.packageName == packageName) return
-        val prefs = getSharedPreferences("launcher_flags", MODE_PRIVATE)
-        if (prefs.getBoolean("asked_launcher", false)) return
-        prefs.edit().putBoolean("asked_launcher", true).apply()
-        try {
-            startActivity(Intent(Settings.ACTION_HOME_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        } catch (e: Exception) {
-            try { startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e2: Exception) {}
-        }
-    }
-}
+    override fun on
