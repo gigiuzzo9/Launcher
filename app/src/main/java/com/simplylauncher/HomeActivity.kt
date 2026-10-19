@@ -80,7 +80,7 @@ class HomeActivity : AppCompatActivity() {
         )
         homeRecyclerView.adapter = adapter
 
-        homeRecyclerView.setOnDragListener { _, event -> handleDrop(event, isDock = false) }
+        homeRecyclerView.setOnDragListener { _, event -> handleDrop(event, isDock = false, isHomeGrid = true) }
 
         drawerOverlay = findViewById(R.id.drawerOverlay)
         drawerContainer = findViewById(R.id.drawerContainer)
@@ -97,9 +97,9 @@ class HomeActivity : AppCompatActivity() {
         )
         drawerRecyclerView.adapter = drawerAdapter
 
-        drawerRecyclerView.setOnDragListener { _, event -> handleDrop(event, isDock = false) }
+        drawerRecyclerView.setOnDragListener { _, event -> handleDrop(event, isDock = false, isHomeGrid = false) }
 
-        dockLayout.setOnDragListener { _, event -> handleDrop(event, isDock = true) }
+        dockLayout.setOnDragListener { _, event -> handleDrop(event, isDock = true, isHomeGrid = false) }
 
         drawerOverlay.setOnClickListener {
             closeDrawer()
@@ -186,11 +186,11 @@ class HomeActivity : AppCompatActivity() {
         view.startDragAndDrop(clip, shadow, null, 0)
 
         if (drawerOpen) {
-            drawerOverlay.animate().alpha(0.3f).setDuration(300).start()
+            drawerOverlay.animate().alpha(0.15f).setDuration(300).start()
         }
     }
 
-    private fun handleDrop(event: DragEvent, isDock: Boolean): Boolean {
+    private fun handleDrop(event: DragEvent, isDock: Boolean, isHomeGrid: Boolean): Boolean {
         when (event.action) {
             DragEvent.ACTION_DRAG_STARTED -> {
                 return event.clipDescription.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN)
@@ -207,6 +207,14 @@ class HomeActivity : AppCompatActivity() {
                 val pkg = event.clipData.getItemAt(0).text.toString()
                 if (isDock) {
                     addToDock(pkg)
+                } else if (isHomeGrid) {
+                    val cols = getCurrentCols()
+                    val cellWidth = homeRecyclerView.width / cols.toFloat()
+                    val cellHeight = homeRecyclerView.height / 6f
+                    val col = (event.x / cellWidth).toInt().coerceIn(0, cols - 1)
+                    val row = (event.y / cellHeight).toInt().coerceIn(0, 5)
+                    val index = row * cols + col
+                    addToHomeAt(pkg, index)
                 } else {
                     addToHome(pkg)
                 }
@@ -215,11 +223,20 @@ class HomeActivity : AppCompatActivity() {
             }
             DragEvent.ACTION_DRAG_ENDED -> {
                 if (isDock) dockLayout.setBackgroundColor(Color.TRANSPARENT)
+                if (drawerOpen && !event.result) {
+                    // Se il drag è fallito e il cassetto era aperto, lo chiudo
+                    closeDrawer()
+                }
                 drawerOverlay.animate().alpha(1f).setDuration(200).start()
                 return true
             }
         }
         return false
+    }
+
+    private fun getCurrentCols(): Int {
+        val lm = homeRecyclerView.layoutManager as? GridLayoutManager
+        return lm?.spanCount ?: 4
     }
 
     private fun addToHome(pkg: String) {
@@ -229,6 +246,17 @@ class HomeActivity : AppCompatActivity() {
                 Prefs.setHomeItems(this@HomeActivity, homeItems + pkg)
                 loadHomeApps()
             }
+        }
+    }
+
+    private fun addToHomeAt(pkg: String, index: Int) {
+        lifecycleScope.launch {
+            val homeItems = Prefs.homeItemsFlow(this@HomeActivity).first().toMutableList()
+            homeItems.remove(pkg)
+            val targetIndex = index.coerceIn(0, homeItems.size)
+            homeItems.add(targetIndex, pkg)
+            Prefs.setHomeItems(this@HomeActivity, homeItems)
+            loadHomeApps()
         }
     }
 
