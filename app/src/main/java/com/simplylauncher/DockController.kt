@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
- * Gestisce i 4 slot della dock + il pulsante drawer al centro.
+ * Gestisce i 4 slot della dock.
  * Ogni slot è un target di drop indipendente.
  */
 class DockController(
@@ -36,7 +36,8 @@ class DockController(
             slots.forEachIndexed { index, slot ->
                 slot.removeAllViews()
                 val pkg = dockItems.getOrNull(index)
-                val app = pkg?.let { byPkg[it] }
+                val app = if (pkg.isNullOrBlank()) null else byPkg[pkg]
+
                 if (app != null) {
                     val imageView = ImageView(activity).apply {
                         setImageDrawable(app.icon)
@@ -83,23 +84,22 @@ class DockController(
                 val source = event.clipData.description.label?.toString() ?: ""
 
                 activity.lifecycleScope.launch {
-                    val dockItems = Prefs.dockItemsFlow(activity).first().toMutableList()
-
                     if (source == DragController.SOURCE_DOCK) {
-                        // riordino dock: swap slot
+                        // riordino dock: swap tra slot
+                        val dockItems = Prefs.dockItemsFlow(activity).first().toMutableList()
+                        while (dockItems.size < 4) dockItems.add("")
                         val fromIndex = dockItems.indexOf(pkg)
                         if (fromIndex != -1 && fromIndex != slotIndex) {
-                            while (dockItems.size <= maxOf(fromIndex, slotIndex)) dockItems.add("")
                             val a = dockItems[fromIndex]
                             val b = dockItems[slotIndex]
                             dockItems[fromIndex] = b
                             dockItems[slotIndex] = a
-                            Prefs.setDockItems(activity, dockItems.filter { it.isNotBlank() })
+                            Prefs.setDockItems(activity, dockItems)
                             refresh()
                         }
                     } else {
                         // da HOME o DRAWER: metti nello slot
-                        addToDockAt(pkg, slotIndex, dockItems)
+                        addToDockAt(pkg, slotIndex)
                     }
                 }
                 return true
@@ -113,24 +113,30 @@ class DockController(
         return false
     }
 
-    private suspend fun addToDockAt(pkg: String, slotIndex: Int, dockItems: MutableList<String>) {
-        // rimuovi se già presente
+    private suspend fun addToDockAt(pkg: String, slotIndex: Int) {
+        val dockItems = Prefs.dockItemsFlow(activity).first().toMutableList()
+        while (dockItems.size < 4) dockItems.add("")
+
+        // rimuovi pkg se già presente in un'altra slot
         val existingIndex = dockItems.indexOf(pkg)
-        if (existingIndex != -1) dockItems.removeAt(existingIndex)
-
-        // riempi fino a slotIndex con placeholder
-        while (dockItems.size < slotIndex) dockItems.add("")
-
-        if (dockItems.size == slotIndex) {
-            dockItems.add(pkg)
-        } else {
-            // slot occupato: metti pkg, sposta occupante in fondo
-            val previous = dockItems[slotIndex]
-            dockItems[slotIndex] = pkg
-            if (previous.isNotBlank()) dockItems.add(previous)
+        if (existingIndex != -1) {
+            dockItems[existingIndex] = ""
         }
 
-        Prefs.setDockItems(activity, dockItems.filter { it.isNotBlank() })
+        // metti pkg nella slot target
+        val previousOccupant = dockItems[slotIndex]
+        dockItems[slotIndex] = pkg
+
+        // se la slot era occupata, sposta l'occupante in una slot libera
+        if (previousOccupant.isNotBlank()) {
+            val freeIndex = dockItems.indexOfFirst { it.isBlank() }
+            if (freeIndex != -1) {
+                dockItems[freeIndex] = previousOccupant
+            }
+            // altrimenti l'occupante viene scartato (dock pieno)
+        }
+
+        Prefs.setDockItems(activity, dockItems)
 
         // rimuovi dalla home se presente
         val homeSlots = Prefs.homeSlotsFlow(activity).first()
