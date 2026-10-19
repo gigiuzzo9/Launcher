@@ -184,9 +184,22 @@ class HomeActivity : AppCompatActivity() {
             REQUEST_BIND_WIDGET -> {
                 if (resultCode == RESULT_OK) {
                     val info = appWidgetManager.getAppWidgetInfo(pendingWidgetId)
-                    if (info != null) requestBindOrConfigure(info)
+                    if (info != null) {
+                        // Il binding è già stato fatto dal sistema con il consenso dell'utente.
+                        // NON richiamare bindAppWidgetIdIfAllowed.
+                        if (info.configure != null) {
+                            val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
+                                component = info.configure
+                                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingWidgetId)
+                            }
+                            startActivityForResult(intent, REQUEST_CONFIGURE_WIDGET)
+                        } else {
+                            saveWidgetToHome()
+                        }
+                    }
                 } else {
                     Toast.makeText(this, R.string.widget_bind_denied, Toast.LENGTH_SHORT).show()
+                    appWidgetHost.deleteAppWidgetId(pendingWidgetId)
                 }
             }
             REQUEST_CONFIGURE_WIDGET -> {
