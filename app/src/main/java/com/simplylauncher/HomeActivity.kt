@@ -180,11 +180,9 @@ class HomeActivity : AppCompatActivity() {
                     val widgetId = data.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
                     if (widgetId != -1) {
                         pendingWidgetId = widgetId
-                        val info = appWidgetManager.getAppWidgetInfo(widgetId)
-                        if (info != null) {
-                            lifecycleScope.launch {
-                                findFreeCellAndProceed(info)
-                            }
+                        // Il picker ha già fatto il binding: prova a creare la view direttamente
+                        lifecycleScope.launch {
+                            findFreeCellAndPlaceWidget()
                         }
                     }
                 } else {
@@ -221,7 +219,12 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    private suspend fun findFreeCellAndProceed(info: AppWidgetProviderInfo) {
+    /**
+     * Dopo il picker, il binding è già stato fatto.
+     * Trova la cella libera e prova a creare la view.
+     * Se createView fallisce, allora chiedi il permesso.
+     */
+    private suspend fun findFreeCellAndPlaceWidget() {
         val slots = Prefs.homeSlotsFlow(this@HomeActivity).first()
         val widgets = Prefs.widgetSlotsFlow(this@HomeActivity).first()
         val occupied = mutableSetOf<Pair<Int, Int>>()
@@ -256,12 +259,19 @@ class HomeActivity : AppCompatActivity() {
             pendingWidgetId = -1
             return
         }
-        requestBindOrConfigure(info)
-    }
 
-    private fun requestBindOrConfigure(info: AppWidgetProviderInfo) {
-        val canBind = appWidgetManager.bindAppWidgetIdIfAllowed(pendingWidgetId, info.provider)
-        if (canBind) {
+        val info = appWidgetManager.getAppWidgetInfo(pendingWidgetId)
+        if (info == null) {
+            Toast.makeText(this@HomeActivity, "Widget non valido", Toast.LENGTH_SHORT).show()
+            appWidgetHost.deleteAppWidgetId(pendingWidgetId)
+            pendingWidgetId = -1
+            return
+        }
+
+        // Prova a creare la view direttamente (il binding dovrebbe essere già fatto)
+        try {
+            appWidgetHost.createView(baseContext, pendingWidgetId, info)
+            // Se arriva qui senza eccezioni, il binding è ok
             if (info.configure != null) {
                 val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
                     component = info.configure
@@ -271,10 +281,12 @@ class HomeActivity : AppCompatActivity() {
             } else {
                 saveWidgetToHome()
             }
-        } else {
+        } catch (e: Exception) {
+            // createView ha fallito: il binding non è stato fatto, chiedi il permesso
             val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingWidgetId)
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, info.provider)
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_OPTIONS, Bundle())
             }
             startActivityForResult(intent, REQUEST_BIND_WIDGET)
         }
@@ -313,7 +325,6 @@ class HomeActivity : AppCompatActivity() {
 
         val pickIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            // QUESTE DUE RIGHE SONO OBBLIGATORIE PER APRIRE IL PICKER DI SISTEMA
             putParcelableArrayListExtra(
                 AppWidgetManager.EXTRA_CUSTOM_INFO,
                 ArrayList<AppWidgetProviderInfo>()
