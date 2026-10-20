@@ -5,7 +5,6 @@ import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.BroadcastReceiver
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -353,27 +352,10 @@ class HomeActivity : AppCompatActivity() {
         pendingWidgetWidthCells = 2.coerceAtMost(currentCols)
         pendingWidgetHeightCells = 1
 
-        val pickIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).apply {
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            putParcelableArrayListExtra(
-                AppWidgetManager.EXTRA_CUSTOM_INFO,
-                ArrayList<AppWidgetProviderInfo>()
-            )
-            putParcelableArrayListExtra(
-                AppWidgetManager.EXTRA_CUSTOM_EXTRAS,
-                ArrayList<Bundle>()
-            )
+        val intent = Intent(this, WidgetPickerActivity::class.java).apply {
+            putExtra(WidgetPickerActivity.EXTRA_APPWIDGET_ID, appWidgetId)
         }
-        pickIntent.component = ComponentName(
-            "com.android.settings",
-            "com.android.settings.AppWidgetPickActivity"
-        )
-        try {
-            startActivityForResult(pickIntent, REQUEST_PICK_WIDGET)
-        } catch (_: Exception) {
-            pickIntent.component = null
-            startActivityForResult(pickIntent, REQUEST_PICK_WIDGET)
-        }
+        startActivityForResult(intent, REQUEST_PICK_WIDGET)
     }
 
     private fun renderWidgets() {
