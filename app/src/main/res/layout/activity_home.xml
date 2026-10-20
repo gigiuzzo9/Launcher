@@ -28,16 +28,6 @@
         app:layout_constraintStart_toStartOf="@id/homeViewPager"
         app:layout_constraintEnd_toEndOf="@id/homeViewPager" />
 
-    <com.simplylauncher.WidgetResizeFrame
-        android:id="@+id/resizeFrame"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:visibility="gone"
-        app:layout_constraintTop_toTopOf="@id/homeViewPager"
-        app:layout_constraintBottom_toBottomOf="@id/homeViewPager"
-        app:layout_constraintStart_toStartOf="@id/homeViewPager"
-        app:layout_constraintEnd_toEndOf="@id/homeViewPager" />
-
     <com.simplylauncher.PageIndicatorView
         android:id="@+id/pageIndicator"
         android:layout_width="wrap_content"
@@ -109,6 +99,25 @@
             android:gravity="center" />
 
     </LinearLayout>
+
+    <!-- Overlay per il resize, copre tutto lo schermo, sopra a tutto tranne il drawer -->
+    <FrameLayout
+        android:id="@+id/resizeOverlay"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <com.simplylauncher.WidgetResizeFrame
+            android:id="@+id/resizeFrame"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+
+    </FrameLayout>
 
     <FrameLayout
         android:id="@+id/drawerOverlay"
