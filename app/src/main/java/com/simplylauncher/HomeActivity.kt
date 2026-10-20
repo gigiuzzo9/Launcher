@@ -427,39 +427,36 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showWidgetMenu(
-        slot: WidgetSlot,
-        info: AppWidgetProviderInfo,
-        cellW: Int,
-        cellH: Int,
-        recycler: RecyclerView
-    ) {
-        val options = arrayOf("Ridimensiona", "Rimuovi widget")
-        val dialog = AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Light_Dialog_NoActionBar)
-            .setTitle("Widget")
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> startResize(slot, info, cellW, cellH, recycler)
-                    1 -> {
-                        lifecycleScope.launch {
-                            val current = Prefs.widgetSlotsFlow(this@HomeActivity).first()
-                            Prefs.setWidgetSlots(
-                                this@HomeActivity,
-                                current.filter { it.appWidgetId != slot.appWidgetId }
-                            )
-                            appWidgetHost.deleteAppWidgetId(slot.appWidgetId)
-                            renderWidgets()
-                        }
+    slot: WidgetSlot,
+    info: AppWidgetProviderInfo,
+    cellW: Int,
+    cellH: Int,
+    recycler: RecyclerView
+) {
+    val options = arrayOf("Ridimensiona", "Rimuovi widget")
+
+    val builder = AlertDialog.Builder(this, androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog_Alert)
+        .setTitle("Widget")
+        .setItems(options) { _, which ->
+            when (which) {
+                0 -> startResize(slot, info, cellW, cellH, recycler)
+                1 -> {
+                    lifecycleScope.launch {
+                        val current = Prefs.widgetSlotsFlow(this@HomeActivity).first()
+                        Prefs.setWidgetSlots(
+                            this@HomeActivity,
+                            current.filter { it.appWidgetId != slot.appWidgetId }
+                        )
+                        appWidgetHost.deleteAppWidgetId(slot.appWidgetId)
+                        renderWidgets()
                     }
                 }
             }
-            .create()
-
-        dialog.setOnShowListener {
-            dialog.window?.setBackgroundDrawable(ColorDrawable(Color.WHITE))
-            dialog.window?.decorView?.setBackgroundColor(Color.WHITE)
         }
-        dialog.show()
-    }
+
+    val dialog = builder.create()
+    dialog.show()
+}
 
     private fun startResize(
         slot: WidgetSlot,
