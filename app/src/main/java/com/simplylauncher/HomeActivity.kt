@@ -249,7 +249,6 @@ class HomeActivity : AppCompatActivity() {
                                     findFreeCellAndPlaceWidget()
                                 } catch (e: Exception) {
                                     android.util.Log.e("WIDGET_DEBUG", "Crash findFreeCell", e)
-                                    Toast.makeText(this@HomeActivity, "Errore: ${e.message}", Toast.LENGTH_LONG).show()
                                     if (pendingWidgetId != -1) {
                                         appWidgetHost.deleteAppWidgetId(pendingWidgetId)
                                         pendingWidgetId = -1
@@ -297,7 +296,6 @@ class HomeActivity : AppCompatActivity() {
                                 findFreeCellAndPlaceWidget()
                             } catch (e: Exception) {
                                 android.util.Log.e("WIDGET_DEBUG", "Crash post-bind", e)
-                                Toast.makeText(this@HomeActivity, "Errore: ${e.message}", Toast.LENGTH_LONG).show()
                                 if (pendingWidgetId != -1) {
                                     appWidgetHost.deleteAppWidgetId(pendingWidgetId)
                                     pendingWidgetId = -1
@@ -319,14 +317,8 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private suspend fun findFreeCellAndPlaceWidget() {
-        android.util.Log.d("WIDGET_DEBUG", "findFreeCell: id=$pendingWidgetId, cols=$currentCols, rows=$currentRows")
-
-        if (pendingWidgetId == -1) {
-            Toast.makeText(this@HomeActivity, "ID widget non valido", Toast.LENGTH_SHORT).show()
-            return
-        }
+        if (pendingWidgetId == -1) return
         if (currentCols <= 0 || currentRows <= 0) {
-            Toast.makeText(this@HomeActivity, "Griglia non valida", Toast.LENGTH_SHORT).show()
             appWidgetHost.deleteAppWidgetId(pendingWidgetId)
             pendingWidgetId = -1
             return
@@ -345,42 +337,6 @@ class HomeActivity : AppCompatActivity() {
         val info = appWidgetManager.getAppWidgetInfo(pendingWidgetId)
         if (info == null) {
             Toast.makeText(this@HomeActivity, "Widget non valido", Toast.LENGTH_SHORT).show()
-            appWidgetHost.deleteAppWidgetId(pendingWidgetId)
-            pendingWidgetId = -1
-            return
-        }
-
-        var widthCells = 0
-        var heightCells = 0
-
-        if (android.os.Build.VERSION.SDK_INT >= 31) {
-            if (info.targetCellWidth > 0) widthCells = info.targetCellWidth
-            if (info.targetCellHeight > 0) heightCells = info.targetCellHeight
-        }
-
-        if (widthCells <= 0 && info.minWidth > 0) {
-            widthCells = ((info.minWidth + 16) / 73f).toInt().coerceAtLeast(1)
-        }
-        if (heightCells <= 0 && info.minHeight > 0) {
-            heightCells = ((info.minHeight + 16) / 73f).toInt().coerceAtLeast(1)
-        }
-
-        if (widthCells <= 0) widthCells = 1
-        if (heightCells <= 0) heightCells = 1
-
-        pendingWidgetWidthCells = widthCells.coerceIn(1, currentCols)
-        pendingWidgetHeightCells = heightCells.coerceIn(1, currentRows)
-
-        android.util.Log.d(
-            "WIDGET_DEBUG",
-            "Widget $pendingWidgetId: minW=${info.minWidth}, minH=${info.minHeight}, " +
-            "targetW=${info.targetCellWidth}, targetH=${info.targetCellHeight}, " +
-            "calcolate=${pendingWidgetWidthCells}x${pendingWidgetHeightCells}, " +
-            "griglia=${currentCols}x${currentRows}"
-        )
-
-        if (pendingWidgetWidthCells > currentCols || pendingWidgetHeightCells > currentRows) {
-            Toast.makeText(this@HomeActivity, "Widget troppo grande per la griglia", Toast.LENGTH_SHORT).show()
             appWidgetHost.deleteAppWidgetId(pendingWidgetId)
             pendingWidgetId = -1
             return
@@ -425,7 +381,6 @@ class HomeActivity : AppCompatActivity() {
                 saveWidgetToHome()
             }
         } catch (e: Exception) {
-            android.util.Log.e("WIDGET_DEBUG", "createView fallita, provo bind", e)
             val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingWidgetId)
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, info.provider)
@@ -499,8 +454,6 @@ class HomeActivity : AppCompatActivity() {
                         val info = appWidgetManager.getAppWidgetInfo(slot.appWidgetId) ?: return@forEach
                         val hostView = appWidgetHost.createView(baseContext, slot.appWidgetId, info) as LauncherAppWidgetHostView
                         hostView.setAppWidget(slot.appWidgetId, info)
-
-                       
 
                         val lp = FrameLayout.LayoutParams(
                             cellW * slot.widthCells,
