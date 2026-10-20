@@ -73,7 +73,6 @@ class HomeActivity : AppCompatActivity() {
     private var pendingWidgetWidthCells = 2
     private var pendingWidgetHeightCells = 1
 
-    // Resize state
     private var resizingWidgetSlot: WidgetSlot? = null
 
     private var currentCols = 4
@@ -121,7 +120,11 @@ class HomeActivity : AppCompatActivity() {
         drawerRecyclerView = findViewById(R.id.drawerRecyclerView)
 
         appWidgetManager = AppWidgetManager.getInstance(this)
-        appWidgetHost = AppWidgetHost(this, widgetHostId)
+        appWidgetHost = object : AppWidgetHost(this, widgetHostId) {
+            override fun onCreateView(context: Context, appWidgetId: Int, appWidget: AppWidgetProviderInfo): AppWidgetHostView {
+                return LauncherAppWidgetHostView(context)
+            }
+        }
 
         setupResizeFrame()
         setupHomePager()
@@ -214,9 +217,7 @@ class HomeActivity : AppCompatActivity() {
                     val widgetId = data.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
                     if (widgetId != -1) {
                         pendingWidgetId = widgetId
-                        lifecycleScope.launch {
-                            findFreeCellAndPlaceWidget()
-                        }
+                        lifecycleScope.launch { findFreeCellAndPlaceWidget() }
                     }
                 } else {
                     if (pendingWidgetId != -1) {
@@ -332,12 +333,7 @@ class HomeActivity : AppCompatActivity() {
             )
             Prefs.setWidgetSlots(this@HomeActivity, widgets)
             Toast.makeText(this@HomeActivity, R.string.widget_added, Toast.LENGTH_SHORT).show()
-
-            homeViewPager.post {
-                homeViewPager.post {
-                    renderWidgets()
-                }
-            }
+            homeViewPager.post { homeViewPager.post { renderWidgets() } }
         }
     }
 
@@ -350,16 +346,10 @@ class HomeActivity : AppCompatActivity() {
 
         val pickIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            putParcelableArrayListExtra(
-                AppWidgetManager.EXTRA_CUSTOM_INFO,
-                ArrayList<AppWidgetProviderInfo>()
-            )
-            putParcelableArrayListExtra(
-                AppWidgetManager.EXTRA_CUSTOM_EXTRAS,
-                ArrayList<Bundle>()
-            )
+            putParcelableArrayListExtra(AppWidgetManager.EXTRA_CUSTOM_INFO, ArrayList<AppWidgetProviderInfo>())
+            putParcelableArrayListExtra(AppWidgetManager.EXTRA_CUSTOM_EXTRAS, ArrayList<Bundle>())
         }
-        // Forza il picker di sistema di Android
+        // Forza il picker di sistema di Android (AppWidgetPickActivity)
         pickIntent.component = ComponentName(
             "com.android.settings",
             "com.android.settings.AppWidgetPickActivity"
@@ -400,7 +390,7 @@ class HomeActivity : AppCompatActivity() {
 
             widgets.filter { it.page == homeViewPager.currentItem }.forEach { slot ->
                 val info = appWidgetManager.getAppWidgetInfo(slot.appWidgetId) ?: return@forEach
-                val hostView = appWidgetHost.createView(baseContext, slot.appWidgetId, info) as AppWidgetHostView
+                val hostView = appWidgetHost.createView(baseContext, slot.appWidgetId, info) as LauncherAppWidgetHostView
                 hostView.setAppWidget(slot.appWidgetId, info)
 
                 val lp = FrameLayout.LayoutParams(
@@ -412,10 +402,9 @@ class HomeActivity : AppCompatActivity() {
                 }
                 widgetOverlay.addView(hostView, lp)
 
-                // Long-press: mostra menu con Ridimensiona / Rimuovi widget
-                hostView.setOnLongClickListener { _ ->
-                    showWidgetMenu(slot, info, cellW, cellH, offsetX, offsetY, recycler)
-                    true
+                // Long-press gestito dalla view personalizzata
+                hostView.onLongPress = {
+                    showWidgetMenu(slot, info, cellW, cellH, recycler)
                 }
             }
         }
@@ -426,27 +415,24 @@ class HomeActivity : AppCompatActivity() {
         info: AppWidgetProviderInfo,
         cellW: Int,
         cellH: Int,
-        offsetX: Int,
-        offsetY: Int,
         recycler: RecyclerView
     ) {
         val popup = android.widget.PopupMenu(this, findViewById(android.R.id.content))
         popup.menu.add(0, 1, 0, "Ridimensiona")
         popup.menu.add(0, 2, 1, "Rimuovi widget")
+        // Posiziona il popup al centro dello schermo
+        popup.gravity = Gravity.CENTER
 
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 1 -> {
-                    startResize(slot, info, cellW, cellH, offsetX, offsetY, recycler)
+                    startResize(slot, info, cellW, cellH, recycler)
                     true
                 }
                 2 -> {
                     lifecycleScope.launch {
                         val current = Prefs.widgetSlotsFlow(this@HomeActivity).first()
-                        Prefs.setWidgetSlots(
-                            this@HomeActivity,
-                            current.filter { it.appWidgetId != slot.appWidgetId }
-                        )
+                        Prefs.setWidgetSlots(this@HomeActivity, current.filter { it.appWidgetId != slot.appWidgetId })
                         appWidgetHost.deleteAppWidgetId(slot.appWidgetId)
                         renderWidgets()
                     }
@@ -463,29 +449,26 @@ class HomeActivity : AppCompatActivity() {
         info: AppWidgetProviderInfo,
         cellW: Int,
         cellH: Int,
-        offsetX: Int,
-        offsetY: Int,
         recycler: RecyclerView
     ) {
         resizingWidgetSlot = slot
 
+        val recyclerLoc = IntArray(2)
+        recycler.getLocationOnScreen(recyclerLoc)
+        val overlayLoc = IntArray(2)
+        widgetOverlay.getLocationOnScreen(overlayLoc)
+        val offsetX = recyclerLoc[0] - overlayLoc[0]
+        val offsetY = recyclerLoc[1] - overlayLoc[1]
         val paddingTop = recycler.paddingTop
-        val frameLeft = offsetX + slot.col * cellW
-        val frameTop = offsetY + paddingTop + slot.row * cellH
-        val frameRight = frameLeft + slot.widthCells * cellW
-        val frameBottom = frameTop + slot.heightCells * cellH
 
-        val minW = info.minResizeWidth
-        val minH = info.minResizeHeight
-        val minCellsW = (minW / cellW).coerceAtLeast(1).coerceAtMost(currentCols)
-        val minCellsH = (minH / cellH).coerceAtLeast(1).coerceAtMost(currentRows)
-
-        // La cornice è dentro widgetOverlay, che ha le stesse dimensioni del recycler (offset escluso)
-        // Quindi le coordinate sono relative a widgetOverlay
+        // Coordinate relative a widgetOverlay
         val frameLeftRel = slot.col * cellW
         val frameTopRel = paddingTop + slot.row * cellH
         val frameRightRel = frameLeftRel + slot.widthCells * cellW
         val frameBottomRel = frameTopRel + slot.heightCells * cellH
+
+        val minCellsW = (info.minResizeWidth / cellW).coerceAtLeast(1).coerceAtMost(currentCols)
+        val minCellsH = (info.minResizeHeight / cellH).coerceAtLeast(1).coerceAtMost(currentRows)
 
         resizeFrame.configure(
             frameLeft = frameLeftRel,
@@ -502,8 +485,8 @@ class HomeActivity : AppCompatActivity() {
             minCellsHeight = minCellsH,
             maxCellsWidth = currentCols,
             maxCellsHeight = currentRows,
-            offsetX = 0,
-            offsetY = 0
+            gridOffsetX = 0,
+            gridOffsetY = paddingTop
         )
 
         resizeFrame.visibility = View.VISIBLE
@@ -590,10 +573,7 @@ class HomeActivity : AppCompatActivity() {
                         slot.getLocationOnScreen(loc)
                         val cx = loc[0] + slot.width / 2f
                         val cy = loc[1] + slot.height / 2f
-                        val dist = Math.hypot(
-                            (dropScreenX - cx).toDouble(),
-                            (dropScreenY - cy).toDouble()
-                        ).toFloat()
+                        val dist = Math.hypot((dropScreenX - cx).toDouble(), (dropScreenY - cy).toDouble()).toFloat()
                         if (dist < closestDist) { closestDist = dist; closestIndex = index }
                     }
 
@@ -626,20 +606,13 @@ class HomeActivity : AppCompatActivity() {
     private fun setupDrawer() {
         drawerRecyclerView.layoutManager = GridLayoutManager(this, 4)
         drawerRecyclerView.addItemDecoration(object : RecyclerView.ItemDecoration() {
-            override fun getItemOffsets(
-                outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State
-            ) {
+            override fun getItemOffsets(outRect: Rect, view: View, parent: RecyclerView, state: RecyclerView.State) {
                 outRect.bottom = (12 * resources.displayMetrics.density).toInt()
             }
         })
         drawerAdapter = AppAdapter(
-            onClick = { app ->
-                AppRepository.launchApp(this, app.packageName)
-                closeDrawer()
-            },
-            onLongPress = { app, view ->
-                dragController.onLongPress(app, view, DragController.SOURCE_DRAWER, true)
-            }
+            onClick = { app -> AppRepository.launchApp(this, app.packageName); closeDrawer() },
+            onLongPress = { app, view -> dragController.onLongPress(app, view, DragController.SOURCE_DRAWER, true) }
         )
         drawerRecyclerView.adapter = drawerAdapter
         drawerOverlay.setOnClickListener { closeDrawer() }
@@ -683,10 +656,7 @@ class HomeActivity : AppCompatActivity() {
 
     private fun setupHomePopup() {
         homePopupMenu = HomePopupMenu(this)
-        homePopupMenu.onAddWidget = {
-            homePopupMenu.dismiss()
-            startWidgetPicker()
-        }
+        homePopupMenu.onAddWidget = { homePopupMenu.dismiss(); startWidgetPicker() }
         homePopupMenu.onAddPage = {
             lifecycleScope.launch {
                 currentPageCount += 1
@@ -705,18 +675,13 @@ class HomeActivity : AppCompatActivity() {
                 lifecycleScope.launch {
                     val slots = Prefs.homeSlotsFlow(this@HomeActivity).first()
                     val widgets = Prefs.widgetSlotsFlow(this@HomeActivity).first()
-                    val itemsOnPage = slots.count { it.page == currentPageIndex } +
-                            widgets.count { it.page == currentPageIndex }
+                    val itemsOnPage = slots.count { it.page == currentPageIndex } + widgets.count { it.page == currentPageIndex }
                     if (itemsOnPage > 0) {
                         Toast.makeText(this@HomeActivity, "La pagina non è vuota", Toast.LENGTH_SHORT).show()
                         return@launch
                     }
-                    val newSlots = slots.map {
-                        if (it.page > currentPageIndex) it.copy(page = it.page - 1) else it
-                    }
-                    val newWidgets = widgets.map {
-                        if (it.page > currentPageIndex) it.copy(page = it.page - 1) else it
-                    }
+                    val newSlots = slots.map { if (it.page > currentPageIndex) it.copy(page = it.page - 1) else it }
+                    val newWidgets = widgets.map { if (it.page > currentPageIndex) it.copy(page = it.page - 1) else it }
                     Prefs.setHomeSlots(this@HomeActivity, newSlots)
                     Prefs.setWidgetSlots(this@HomeActivity, newWidgets)
                     currentPageCount -= 1
@@ -757,22 +722,16 @@ class HomeActivity : AppCompatActivity() {
         homeViewPager.adapter = homePagerAdapter
         pageIndicator.setPageCount(currentPageCount)
         pageIndicator.setCurrentPage(homeViewPager.currentItem.coerceIn(0, currentPageCount - 1))
-        homeViewPager.post {
-            recalculateCellHeight()
-            renderWidgets()
-        }
+        homeViewPager.post { recalculateCellHeight(); renderWidgets() }
     }
 
     private fun setupRecyclerTouchHelper(recycler: RecyclerView) {
         if (recycler.tag != null) return
         recycler.tag = "touch_helper_attached"
         val helper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
-            ItemTouchHelper.UP or ItemTouchHelper.DOWN or
-                    ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT, 0
+            ItemTouchHelper.UP or ItemTouchHelper.DOWN or ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT, 0
         ) {
-            override fun onMove(
-                rv: RecyclerView, viewHolder: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder
-            ): Boolean {
+            override fun onMove(rv: RecyclerView, viewHolder: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder): Boolean {
                 val from = viewHolder.adapterPosition
                 val to = target.adapterPosition
                 if (from == RecyclerView.NO_POSITION || to == RecyclerView.NO_POSITION) return false
@@ -794,11 +753,7 @@ class HomeActivity : AppCompatActivity() {
         currentApp = app
         currentAnchor = anchor
         currentFromDrawer = fromDrawer
-        contextMenuView.show(
-            anchor,
-            showRemove = !fromDrawer,
-            drawerIsWhite = fromDrawer && (currentDrawerColor == Color.WHITE)
-        )
+        contextMenuView.show(anchor, showRemove = !fromDrawer, drawerIsWhite = fromDrawer && (currentDrawerColor == Color.WHITE))
     }
 
     fun dismissDragPopup() {
@@ -980,14 +935,9 @@ class HomeActivity : AppCompatActivity() {
             pageIndicator.setPageCount(currentPageCount)
             pageIndicator.setCurrentPage(homeViewPager.currentItem.coerceIn(0, currentPageCount - 1))
 
-            if (!drawerOpen) {
-                emptyMessage.visibility = if (slots.isEmpty()) View.VISIBLE else View.GONE
-            }
+            if (!drawerOpen) emptyMessage.visibility = if (slots.isEmpty()) View.VISIBLE else View.GONE
 
-            homeViewPager.post {
-                recalculateCellHeight()
-                renderWidgets()
-            }
+            homeViewPager.post { recalculateCellHeight(); renderWidgets() }
         }
     }
 
