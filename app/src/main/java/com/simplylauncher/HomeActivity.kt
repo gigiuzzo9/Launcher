@@ -733,14 +733,12 @@ class HomeActivity : AppCompatActivity() {
     private fun setupHomePager() {
         homeViewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
-                pageIndicator.setCurrentPage(position)
-                homeViewPager.post {
-                    recalculateCellHeight()
-                    renderWidgets()
-                }
-            }
-        })
-    }
+    pageIndicator.setCurrentPage(position)
+    homeViewPager.postDelayed({
+        recalculateCellHeight()
+        renderWidgets()
+    }, 300)
+}
 
     private fun setupDragController() {
         dragController = DragController(
