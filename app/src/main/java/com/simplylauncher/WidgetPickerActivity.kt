@@ -105,16 +105,9 @@ class WidgetPickerActivity : AppCompatActivity() {
                 marginEnd = dp(16)
             }
             try {
-                val preview = info.loadPreviewImage(ctx, 0)
-                if (preview != null) {
-                    setImageDrawable(preview)
-                } else {
-                    setImageDrawable(info.loadIcon(ctx.packageManager, 0))
-                }
-            } catch (e: Exception) {
-                try {
-                    setImageDrawable(info.loadIcon(ctx.packageManager, 0))
-                } catch (_: Exception) {}
+                setImageDrawable(info.loadIcon(ctx.packageManager, 0))
+            } catch (_: Exception) {
+                // icona mancante: lascia vuoto
             }
         }
         row.addView(icon)
