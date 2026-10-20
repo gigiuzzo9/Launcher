@@ -734,10 +734,15 @@ class HomeActivity : AppCompatActivity() {
     homeViewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
         override fun onPageSelected(position: Int) {
             pageIndicator.setCurrentPage(position)
-            homeViewPager.postDelayed({
-                recalculateCellHeight()
-                renderWidgets()
-            }, 300)
+        }
+
+        override fun onPageScrollStateChanged(state: Int) {
+            if (state == ViewPager2.SCROLL_STATE_IDLE) {
+                homeViewPager.postDelayed({
+                    recalculateCellHeight()
+                    renderWidgets()
+                }, 100)
+            }
         }
     })
 }
