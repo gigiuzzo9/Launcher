@@ -2,58 +2,77 @@ package com.simplylauncher
 
 import android.appwidget.AppWidgetHostView
 import android.content.Context
+import android.graphics.PointF
 import android.os.Handler
-import android.os.Looper
 import android.view.MotionEvent
 import android.view.ViewConfiguration
+import kotlin.math.abs
 
 class LauncherAppWidgetHostView(context: Context) : AppWidgetHostView(context) {
+    private val longPressHandler = Handler()
+    private val actionDownCoords = PointF()
+    private val currentCoords = PointF()
+    private val moveGestureThreshold =
+        (24 * resources.displayMetrics.density).toInt() / 4
 
+    var hasLongPressed = false
+    var ignoreTouches = false
     var onLongPress: (() -> Unit)? = null
+    var onIgnoreIntercepted: (() -> Unit)? = null
 
-    private val handler = Handler(Looper.getMainLooper())
-    private var downX = 0f
-    private var downY = 0f
-    private var longPressTriggered = false
-    private val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
-    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
-
-    private val longPressRunnable = Runnable {
-        longPressTriggered = true
-        onLongPress?.invoke()
+    override fun onTouchEvent(event: MotionEvent?): Boolean {
+        return if (ignoreTouches) {
+            onIgnoreIntercepted?.invoke()
+            true
+        } else {
+            super.onTouchEvent(event)
+        }
     }
 
-    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
-        // Se il long-press è già scattato, intercetta TUTTI gli eventi successivi
-        // (incluso l'ACTION_UP) per impedire al widget di aprire l'app.
-        if (longPressTriggered) {
-            if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
-                longPressTriggered = false
-            }
+    override fun onInterceptTouchEvent(event: MotionEvent?): Boolean {
+        if (ignoreTouches || event == null) return true
+        if (hasLongPressed) {
+            hasLongPressed = false
             return true
         }
 
-        when (ev.actionMasked) {
+        when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                downX = ev.x
-                downY = ev.y
-                longPressTriggered = false
-                handler.postDelayed(longPressRunnable, longPressTimeout)
+                longPressHandler.postDelayed(
+                    longPressRunnable,
+                    ViewConfiguration.getLongPressTimeout().toLong()
+                )
+                actionDownCoords.x = event.rawX
+                actionDownCoords.y = event.rawY
+                currentCoords.x = event.rawX
+                currentCoords.y = event.rawY
             }
             MotionEvent.ACTION_MOVE -> {
-                if (Math.abs(ev.x - downX) > touchSlop || Math.abs(ev.y - downY) > touchSlop) {
-                    handler.removeCallbacks(longPressRunnable)
+                currentCoords.x = event.rawX
+                currentCoords.y = event.rawY
+                if (abs(actionDownCoords.x - currentCoords.x) > moveGestureThreshold) {
+                    resetTouches()
+                    return true
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                handler.removeCallbacks(longPressRunnable)
+                resetTouches()
             }
         }
         return false
     }
 
-    override fun onTouchEvent(ev: MotionEvent): Boolean {
-        // Necessario per continuare a ricevere gli eventi dopo il long-press
-        return true
+    private val longPressRunnable = Runnable {
+        if (abs(actionDownCoords.x - currentCoords.x) < moveGestureThreshold &&
+            abs(actionDownCoords.y - currentCoords.y) < moveGestureThreshold
+        ) {
+            longPressHandler.removeCallbacksAndMessages(null)
+            hasLongPressed = true
+            onLongPress?.invoke()
+        }
+    }
+
+    fun resetTouches() {
+        longPressHandler.removeCallbacksAndMessages(null)
     }
 }
