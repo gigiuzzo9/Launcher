@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
+import android.view.ViewConfiguration
 
 class LauncherAppWidgetHostView(context: Context) : AppWidgetHostView(context) {
 
@@ -14,16 +15,24 @@ class LauncherAppWidgetHostView(context: Context) : AppWidgetHostView(context) {
     private var downX = 0f
     private var downY = 0f
     private var longPressTriggered = false
-
-    private val longPressTimeout = android.view.ViewConfiguration.getLongPressTimeout().toLong()
-    private val touchSlop = android.view.ViewConfiguration.get(context).scaledTouchSlop
+    private val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
 
     private val longPressRunnable = Runnable {
         longPressTriggered = true
         onLongPress?.invoke()
     }
 
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        // Se il long-press è già scattato, intercetta TUTTI gli eventi successivi
+        // (incluso l'ACTION_UP) per impedire al widget di aprire l'app.
+        if (longPressTriggered) {
+            if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
+                longPressTriggered = false
+            }
+            return true
+        }
+
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = ev.x
@@ -38,13 +47,13 @@ class LauncherAppWidgetHostView(context: Context) : AppWidgetHostView(context) {
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 handler.removeCallbacks(longPressRunnable)
-                if (longPressTriggered) {
-                    longPressTriggered = false
-                    // consuma l'evento: impedisce al widget di ricevere il click dopo il long-press
-                    return true
-                }
             }
         }
-        return super.dispatchTouchEvent(ev)
+        return false
+    }
+
+    override fun onTouchEvent(ev: MotionEvent): Boolean {
+        // Necessario per continuare a ricevere gli eventi dopo il long-press
+        return true
     }
 }
