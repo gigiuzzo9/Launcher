@@ -667,19 +667,38 @@ class HomeActivity : AppCompatActivity() {
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (::dragController.isInitialized && dragController.onInterceptTouch(ev)) return true
-        if (::contextMenuView.isInitialized && contextMenuView.isShowing()) {
-            if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
-                if (!contextMenuView.isPointInside(ev.rawX, ev.rawY)) {
-                    contextMenuView.dismiss()
-                    currentApp = null
-                    currentAnchor = null
-                }
+    if (::dragController.isInitialized && dragController.onInterceptTouch(ev)) return true
+    if (::contextMenuView.isInitialized && contextMenuView.isShowing()) {
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+            if (!contextMenuView.isPointInside(ev.rawX, ev.rawY)) {
+                contextMenuView.dismiss()
+                currentApp = null
+                currentAnchor = null
             }
         }
-        return super.dispatchTouchEvent(ev)
     }
+    if (ev.actionMasked == MotionEvent.ACTION_DOWN && ::widgetOverlay.isInitialized) {
+        val loc = IntArray(2)
+        widgetOverlay.getLocationOnScreen(loc)
+        val localX = ev.rawX - loc[0]
+        val localY = ev.rawY - loc[1]
 
+        var isOnWidget = false
+        for (i in 0 until widgetOverlay.childCount) {
+            val child = widgetOverlay.getChildAt(i)
+            if (localX >= child.x && localX <= child.x + child.width &&
+                localY >= child.y && localY <= child.y + child.height) {
+                isOnWidget = true
+                break
+            }
+        }
+
+        if (isOnWidget) {
+            return widgetOverlay.dispatchTouchEvent(ev)
+        }
+    }
+    return super.dispatchTouchEvent(ev)
+    }
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         if (resizeOverlay.visibility == View.VISIBLE) {
