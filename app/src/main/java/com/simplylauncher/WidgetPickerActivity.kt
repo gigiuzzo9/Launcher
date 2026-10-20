@@ -105,7 +105,7 @@ class WidgetPickerActivity : AppCompatActivity() {
                 marginEnd = dp(16)
             }
             try {
-                setImageDrawable(info.loadIcon(ctx.packageManager, 0))
+                setImageDrawable(info.loadIcon(ctx, 0))
             } catch (_: Exception) {
                 // icona mancante: lascia vuoto
             }
