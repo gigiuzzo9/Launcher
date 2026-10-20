@@ -11,6 +11,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
 import android.graphics.Rect
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.provider.Settings
 import android.view.DragEvent
@@ -42,6 +43,7 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var dockLayout: View
     private lateinit var dockSlots: List<FrameLayout>
     private lateinit var widgetOverlay: FrameLayout
+    private lateinit var resizeOverlay: FrameLayout
     private lateinit var resizeFrame: WidgetResizeFrame
 
     private lateinit var homePagerAdapter: HomePagerAdapter
@@ -106,6 +108,7 @@ class HomeActivity : AppCompatActivity() {
         dockDrawerButton = findViewById(R.id.dockDrawerButton)
         dockLayout = findViewById(R.id.dockLayout)
         widgetOverlay = findViewById(R.id.widgetOverlay)
+        resizeOverlay = findViewById(R.id.resizeOverlay)
         resizeFrame = findViewById(R.id.resizeFrame)
 
         dockSlots = listOf(
@@ -192,6 +195,7 @@ class HomeActivity : AppCompatActivity() {
                         Prefs.setWidgetSlots(this@HomeActivity, widgets)
                     }
                     resizingWidgetSlot = null
+                    resizeOverlay.visibility = View.GONE
                     resizeFrame.visibility = View.GONE
                     renderWidgets()
                 }
@@ -199,6 +203,7 @@ class HomeActivity : AppCompatActivity() {
         }
         resizeFrame.onResizeCancel = {
             resizingWidgetSlot = null
+            resizeOverlay.visibility = View.GONE
             resizeFrame.visibility = View.GONE
         }
     }
@@ -425,10 +430,9 @@ class HomeActivity : AppCompatActivity() {
         cellH: Int,
         recycler: RecyclerView
     ) {
-        val options = arrayOf("Ridimensiona", "Rimuovi widget")
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle("Widget")
-            .setItems(options) { _, which ->
+            .setItems(arrayOf("Ridimensiona", "Rimuovi widget")) { _, which ->
                 when (which) {
                     0 -> startResize(slot, info, cellW, cellH, recycler)
                     1 -> {
@@ -444,7 +448,13 @@ class HomeActivity : AppCompatActivity() {
                     }
                 }
             }
-            .show()
+            .create()
+
+        // Sfondo bianco per il dialog
+        dialog.setOnShowListener {
+            dialog.window?.setBackgroundDrawable(ColorDrawable(Color.WHITE))
+        }
+        dialog.show()
     }
 
     private fun startResize(
@@ -456,21 +466,28 @@ class HomeActivity : AppCompatActivity() {
     ) {
         resizingWidgetSlot = slot
 
+        // Coordinate assolute rispetto allo schermo
+        val recyclerLoc = IntArray(2)
+        recycler.getLocationOnScreen(recyclerLoc)
+        val overlayLoc = IntArray(2)
+        resizeOverlay.getLocationOnScreen(overlayLoc)
+        val offsetX = recyclerLoc[0] - overlayLoc[0]
+        val offsetY = recyclerLoc[1] - overlayLoc[1]
         val paddingTop = recycler.paddingTop
 
-        val frameLeftRel = slot.col * cellW
-        val frameTopRel = paddingTop + slot.row * cellH
-        val frameRightRel = frameLeftRel + slot.widthCells * cellW
-        val frameBottomRel = frameTopRel + slot.heightCells * cellH
+        val frameLeftAbs = offsetX + slot.col * cellW
+        val frameTopAbs = offsetY + paddingTop + slot.row * cellH
+        val frameRightAbs = frameLeftAbs + slot.widthCells * cellW
+        val frameBottomAbs = frameTopAbs + slot.heightCells * cellH
 
         val minCellsW = (info.minResizeWidth / cellW).coerceAtLeast(1).coerceAtMost(currentCols)
         val minCellsH = (info.minResizeHeight / cellH).coerceAtLeast(1).coerceAtMost(currentRows)
 
         resizeFrame.configure(
-            frameLeft = frameLeftRel,
-            frameTop = frameTopRel,
-            frameRight = frameRightRel,
-            frameBottom = frameBottomRel,
+            frameLeft = frameLeftAbs,
+            frameTop = frameTopAbs,
+            frameRight = frameRightAbs,
+            frameBottom = frameBottomAbs,
             cellLeft = slot.col,
             cellTop = slot.row,
             cellRight = slot.col + slot.widthCells - 1,
@@ -481,12 +498,12 @@ class HomeActivity : AppCompatActivity() {
             minCellsHeight = minCellsH,
             maxCellsWidth = currentCols,
             maxCellsHeight = currentRows,
-            gridOffsetX = 0,
-            gridOffsetY = paddingTop
+            gridOffsetX = offsetX,
+            gridOffsetY = offsetY + paddingTop
         )
 
+        resizeOverlay.visibility = View.VISIBLE
         resizeFrame.visibility = View.VISIBLE
-        resizeFrame.bringToFront()
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
@@ -505,7 +522,8 @@ class HomeActivity : AppCompatActivity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        if (resizeFrame.visibility == View.VISIBLE) {
+        if (resizeOverlay.visibility == View.VISIBLE) {
+            resizeOverlay.visibility = View.GONE
             resizeFrame.visibility = View.GONE
             resizingWidgetSlot = null
             return
@@ -997,6 +1015,7 @@ class HomeActivity : AppCompatActivity() {
         dockLayout.visibility = View.INVISIBLE
         emptyMessage.visibility = View.INVISIBLE
         widgetOverlay.visibility = View.INVISIBLE
+        resizeOverlay.visibility = View.GONE
         resizeFrame.visibility = View.GONE
         applyDrawerBackground()
         drawerOverlay.alpha = 1f
