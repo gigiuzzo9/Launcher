@@ -63,7 +63,6 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var dragController: DragController
     private lateinit var dockController: DockController
 
-    // Widget
     private lateinit var appWidgetHost: AppWidgetHost
     private lateinit var appWidgetManager: AppWidgetManager
     private val widgetHostId = 1001
@@ -344,7 +343,6 @@ class HomeActivity : AppCompatActivity() {
             return
         }
 
-        // Formula Fossify: prima targetCell (API 31+), poi minWidth/minHeight con getCellCount
         var widthCells = 0
         var heightCells = 0
 
@@ -502,22 +500,6 @@ class HomeActivity : AppCompatActivity() {
 
                         val widgetWidth = cellW * slot.widthCells
                         val widgetHeight = cellH * slot.heightCells
-
-                        // Fossify: passa la dimensione in DP, non in pixel
-                        val density = resources.displayMetrics.density
-                        val widgetDpWidth = (widgetWidth / density).toInt()
-                        val widgetDpHeight = (widgetHeight / density).toInt()
-
-                        if (android.os.Build.VERSION.SDK_INT >= 31) {
-                            try {
-                                val sizes = listOf(android.util.SizeF(widgetDpWidth.toFloat(), widgetDpHeight.toFloat()))
-                                hostView.updateAppWidgetSize(Bundle(), sizes)
-                            } catch (_: Exception) {}
-                        } else {
-                            try {
-                                hostView.updateAppWidgetSize(Bundle(), widgetDpWidth, widgetDpHeight, widgetDpWidth, widgetDpHeight)
-                            } catch (_: Exception) {}
-                        }
 
                         val lp = FrameLayout.LayoutParams(widgetWidth, widgetHeight).apply {
                             leftMargin = offsetX + slot.col * cellW
