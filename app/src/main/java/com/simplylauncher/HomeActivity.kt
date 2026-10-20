@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -19,7 +20,6 @@ import android.view.View
 import android.view.animation.AnimationUtils
 import android.widget.FrameLayout
 import android.widget.ImageView
-import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -359,7 +359,17 @@ class HomeActivity : AppCompatActivity() {
                 ArrayList<Bundle>()
             )
         }
-        startActivityForResult(pickIntent, REQUEST_PICK_WIDGET)
+        // Forza il picker di sistema di Android
+        pickIntent.component = ComponentName(
+            "com.android.settings",
+            "com.android.settings.AppWidgetPickActivity"
+        )
+        try {
+            startActivityForResult(pickIntent, REQUEST_PICK_WIDGET)
+        } catch (_: Exception) {
+            pickIntent.component = null
+            startActivityForResult(pickIntent, REQUEST_PICK_WIDGET)
+        }
     }
 
     private fun renderWidgets() {
@@ -402,6 +412,7 @@ class HomeActivity : AppCompatActivity() {
                 }
                 widgetOverlay.addView(hostView, lp)
 
+                // Long-press: mostra menu con Ridimensiona / Rimuovi widget
                 hostView.setOnLongClickListener { _ ->
                     showWidgetMenu(slot, info, cellW, cellH, offsetX, offsetY, recycler)
                     true
@@ -410,9 +421,6 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Mostra un menu con "Ridimensiona" e "Rimuovi" quando si fa long-press sul widget.
-     */
     private fun showWidgetMenu(
         slot: WidgetSlot,
         info: AppWidgetProviderInfo,
@@ -424,7 +432,7 @@ class HomeActivity : AppCompatActivity() {
     ) {
         val popup = android.widget.PopupMenu(this, findViewById(android.R.id.content))
         popup.menu.add(0, 1, 0, "Ridimensiona")
-        popup.menu.add(0, 2, 1, "Rimuovi")
+        popup.menu.add(0, 2, 1, "Rimuovi widget")
 
         popup.setOnMenuItemClickListener { item ->
             when (item.itemId) {
@@ -450,9 +458,6 @@ class HomeActivity : AppCompatActivity() {
         popup.show()
     }
 
-    /**
-     * Avvia il resize: mostra la cornice attorno al widget.
-     */
     private fun startResize(
         slot: WidgetSlot,
         info: AppWidgetProviderInfo,
@@ -475,11 +480,18 @@ class HomeActivity : AppCompatActivity() {
         val minCellsW = (minW / cellW).coerceAtLeast(1).coerceAtMost(currentCols)
         val minCellsH = (minH / cellH).coerceAtLeast(1).coerceAtMost(currentRows)
 
+        // La cornice è dentro widgetOverlay, che ha le stesse dimensioni del recycler (offset escluso)
+        // Quindi le coordinate sono relative a widgetOverlay
+        val frameLeftRel = slot.col * cellW
+        val frameTopRel = paddingTop + slot.row * cellH
+        val frameRightRel = frameLeftRel + slot.widthCells * cellW
+        val frameBottomRel = frameTopRel + slot.heightCells * cellH
+
         resizeFrame.configure(
-            frameLeft = frameLeft,
-            frameTop = frameTop,
-            frameRight = frameRight,
-            frameBottom = frameBottom,
+            frameLeft = frameLeftRel,
+            frameTop = frameTopRel,
+            frameRight = frameRightRel,
+            frameBottom = frameBottomRel,
             cellLeft = slot.col,
             cellTop = slot.row,
             cellRight = slot.col + slot.widthCells - 1,
@@ -490,17 +502,12 @@ class HomeActivity : AppCompatActivity() {
             minCellsHeight = minCellsH,
             maxCellsWidth = currentCols,
             maxCellsHeight = currentRows,
-            offsetX = offsetX,
-            offsetY = offsetY
+            offsetX = 0,
+            offsetY = 0
         )
 
-        // Posiziona la cornice nel widgetOverlay (che è un FrameLayout)
-        val lp = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT
-        )
-        resizeFrame.layoutParams = lp
         resizeFrame.visibility = View.VISIBLE
+        resizeFrame.bringToFront()
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
