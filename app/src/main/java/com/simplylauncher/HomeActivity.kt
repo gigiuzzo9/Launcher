@@ -19,6 +19,7 @@ import android.view.View
 import android.view.animation.AnimationUtils
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -41,6 +42,7 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var dockLayout: View
     private lateinit var dockSlots: List<FrameLayout>
     private lateinit var widgetOverlay: FrameLayout
+    private lateinit var resizeFrame: WidgetResizeFrame
 
     private lateinit var homePagerAdapter: HomePagerAdapter
 
@@ -70,6 +72,9 @@ class HomeActivity : AppCompatActivity() {
     private var pendingWidgetCol = 0
     private var pendingWidgetWidthCells = 2
     private var pendingWidgetHeightCells = 1
+
+    // Resize state
+    private var resizingWidgetSlot: WidgetSlot? = null
 
     private var currentCols = 4
     private var currentRows = 6
@@ -102,6 +107,7 @@ class HomeActivity : AppCompatActivity() {
         dockDrawerButton = findViewById(R.id.dockDrawerButton)
         dockLayout = findViewById(R.id.dockLayout)
         widgetOverlay = findViewById(R.id.widgetOverlay)
+        resizeFrame = findViewById(R.id.resizeFrame)
 
         dockSlots = listOf(
             findViewById(R.id.dockSlot1),
@@ -117,6 +123,7 @@ class HomeActivity : AppCompatActivity() {
         appWidgetManager = AppWidgetManager.getInstance(this)
         appWidgetHost = AppWidgetHost(this, widgetHostId)
 
+        setupResizeFrame()
         setupHomePager()
         setupDragController()
         setupDockController()
@@ -162,6 +169,33 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupResizeFrame() {
+        resizeFrame.onResizeEnd = { left, top, right, bottom ->
+            resizingWidgetSlot?.let { slot ->
+                lifecycleScope.launch {
+                    val widgets = Prefs.widgetSlotsFlow(this@HomeActivity).first().toMutableList()
+                    val index = widgets.indexOfFirst { it.appWidgetId == slot.appWidgetId }
+                    if (index != -1) {
+                        widgets[index] = slot.copy(
+                            row = top,
+                            col = left,
+                            widthCells = right - left + 1,
+                            heightCells = bottom - top + 1
+                        )
+                        Prefs.setWidgetSlots(this@HomeActivity, widgets)
+                    }
+                    resizingWidgetSlot = null
+                    resizeFrame.visibility = View.GONE
+                    renderWidgets()
+                }
+            }
+        }
+        resizeFrame.onResizeCancel = {
+            resizingWidgetSlot = null
+            resizeFrame.visibility = View.GONE
+        }
+    }
+
     override fun onStart() {
         super.onStart()
         appWidgetHost.startListening()
@@ -180,7 +214,6 @@ class HomeActivity : AppCompatActivity() {
                     val widgetId = data.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
                     if (widgetId != -1) {
                         pendingWidgetId = widgetId
-                        // Il picker ha già fatto il binding: prova a creare la view direttamente
                         lifecycleScope.launch {
                             findFreeCellAndPlaceWidget()
                         }
@@ -219,11 +252,6 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Dopo il picker, il binding è già stato fatto.
-     * Trova la cella libera e prova a creare la view.
-     * Se createView fallisce, allora chiedi il permesso.
-     */
     private suspend fun findFreeCellAndPlaceWidget() {
         val slots = Prefs.homeSlotsFlow(this@HomeActivity).first()
         val widgets = Prefs.widgetSlotsFlow(this@HomeActivity).first()
@@ -268,10 +296,8 @@ class HomeActivity : AppCompatActivity() {
             return
         }
 
-        // Prova a creare la view direttamente (il binding dovrebbe essere già fatto)
         try {
             appWidgetHost.createView(baseContext, pendingWidgetId, info)
-            // Se arriva qui senza eccezioni, il binding è ok
             if (info.configure != null) {
                 val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
                     component = info.configure
@@ -282,7 +308,6 @@ class HomeActivity : AppCompatActivity() {
                 saveWidgetToHome()
             }
         } catch (e: Exception) {
-            // createView ha fallito: il binding non è stato fatto, chiedi il permesso
             val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingWidgetId)
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, info.provider)
@@ -378,25 +403,104 @@ class HomeActivity : AppCompatActivity() {
                 widgetOverlay.addView(hostView, lp)
 
                 hostView.setOnLongClickListener { _ ->
-                    AlertDialog.Builder(this@HomeActivity)
-                        .setMessage(R.string.menu_remove_widget)
-                        .setPositiveButton("Sì") { _, _ ->
-                            lifecycleScope.launch {
-                                val current = Prefs.widgetSlotsFlow(this@HomeActivity).first()
-                                Prefs.setWidgetSlots(
-                                    this@HomeActivity,
-                                    current.filter { it.appWidgetId != slot.appWidgetId }
-                                )
-                                appWidgetHost.deleteAppWidgetId(slot.appWidgetId)
-                                renderWidgets()
-                            }
-                        }
-                        .setNegativeButton("No", null)
-                        .show()
+                    showWidgetMenu(slot, info, cellW, cellH, offsetX, offsetY, recycler)
                     true
                 }
             }
         }
+    }
+
+    /**
+     * Mostra un menu con "Ridimensiona" e "Rimuovi" quando si fa long-press sul widget.
+     */
+    private fun showWidgetMenu(
+        slot: WidgetSlot,
+        info: AppWidgetProviderInfo,
+        cellW: Int,
+        cellH: Int,
+        offsetX: Int,
+        offsetY: Int,
+        recycler: RecyclerView
+    ) {
+        val popup = android.widget.PopupMenu(this, findViewById(android.R.id.content))
+        popup.menu.add(0, 1, 0, "Ridimensiona")
+        popup.menu.add(0, 2, 1, "Rimuovi")
+
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                1 -> {
+                    startResize(slot, info, cellW, cellH, offsetX, offsetY, recycler)
+                    true
+                }
+                2 -> {
+                    lifecycleScope.launch {
+                        val current = Prefs.widgetSlotsFlow(this@HomeActivity).first()
+                        Prefs.setWidgetSlots(
+                            this@HomeActivity,
+                            current.filter { it.appWidgetId != slot.appWidgetId }
+                        )
+                        appWidgetHost.deleteAppWidgetId(slot.appWidgetId)
+                        renderWidgets()
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+        popup.show()
+    }
+
+    /**
+     * Avvia il resize: mostra la cornice attorno al widget.
+     */
+    private fun startResize(
+        slot: WidgetSlot,
+        info: AppWidgetProviderInfo,
+        cellW: Int,
+        cellH: Int,
+        offsetX: Int,
+        offsetY: Int,
+        recycler: RecyclerView
+    ) {
+        resizingWidgetSlot = slot
+
+        val paddingTop = recycler.paddingTop
+        val frameLeft = offsetX + slot.col * cellW
+        val frameTop = offsetY + paddingTop + slot.row * cellH
+        val frameRight = frameLeft + slot.widthCells * cellW
+        val frameBottom = frameTop + slot.heightCells * cellH
+
+        val minW = info.minResizeWidth
+        val minH = info.minResizeHeight
+        val minCellsW = max(1, minW / cellW).coerceAtMost(currentCols)
+        val minCellsH = max(1, minH / cellH).coerceAtMost(currentRows)
+
+        resizeFrame.configure(
+            frameLeft = frameLeft,
+            frameTop = frameTop,
+            frameRight = frameRight,
+            frameBottom = frameBottom,
+            cellLeft = slot.col,
+            cellTop = slot.row,
+            cellRight = slot.col + slot.widthCells - 1,
+            cellBottom = slot.row + slot.heightCells - 1,
+            cellWidthPx = cellW,
+            cellHeightPx = cellH,
+            minCellsWidth = minCellsW,
+            minCellsHeight = minCellsH,
+            maxCellsWidth = currentCols,
+            maxCellsHeight = currentRows,
+            offsetX = offsetX,
+            offsetY = offsetY
+        )
+
+        // Posiziona la cornice nel widgetOverlay (che è un FrameLayout)
+        val lp = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        )
+        resizeFrame.layoutParams = lp
+        resizeFrame.visibility = View.VISIBLE
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
@@ -415,6 +519,11 @@ class HomeActivity : AppCompatActivity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        if (resizeFrame.visibility == View.VISIBLE) {
+            resizeFrame.visibility = View.GONE
+            resizingWidgetSlot = null
+            return
+        }
         if (::contextMenuView.isInitialized && contextMenuView.isShowing()) {
             contextMenuView.dismiss()
             currentApp = null
@@ -902,6 +1011,7 @@ class HomeActivity : AppCompatActivity() {
         dockLayout.visibility = View.INVISIBLE
         emptyMessage.visibility = View.INVISIBLE
         widgetOverlay.visibility = View.INVISIBLE
+        resizeFrame.visibility = View.GONE
         applyDrawerBackground()
         drawerOverlay.alpha = 1f
         drawerOverlay.visibility = View.VISIBLE
