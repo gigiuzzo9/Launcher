@@ -256,17 +256,33 @@ class HomeActivity : AppCompatActivity() {
             }
             REQUEST_BIND_WIDGET -> {
                 if (resultCode == RESULT_OK) {
-                    val info = appWidgetManager.getAppWidgetInfo(pendingWidgetId)
-                    if (info != null) {
-                        if (info.configure != null) {
-                            val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
-                                component = info.configure
-                                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingWidgetId)
-                            }
-                            startActivityForResult(intent, REQUEST_CONFIGURE_WIDGET)
-                        } else {
-                            saveWidgetToHome()
+                    // Rileggi l'ID dall'intent di risultato, non usare ciecamente pendingWidgetId
+                    val boundId = data?.getIntExtra(
+                        AppWidgetManager.EXTRA_APPWIDGET_ID,
+                        pendingWidgetId
+                    ) ?: pendingWidgetId
+                    pendingWidgetId = boundId
+
+                    val info = appWidgetManager.getAppWidgetInfo(boundId)
+                    if (info == null) {
+                        Toast.makeText(
+                            this,
+                            "Widget non disponibile dopo il bind",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        appWidgetHost.deleteAppWidgetId(boundId)
+                        pendingWidgetId = -1
+                        return
+                    }
+
+                    if (info.configure != null) {
+                        val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
+                            component = info.configure
+                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, boundId)
                         }
+                        startActivityForResult(intent, REQUEST_CONFIGURE_WIDGET)
+                    } else {
+                        saveWidgetToHome()
                     }
                 } else {
                     Toast.makeText(this, R.string.widget_bind_denied, Toast.LENGTH_SHORT).show()
