@@ -244,7 +244,18 @@ class HomeActivity : AppCompatActivity() {
                             }
                             startActivityForResult(bindIntent, REQUEST_BIND_WIDGET)
                         } else {
-                            lifecycleScope.launch { findFreeCellAndPlaceWidget() }
+                            lifecycleScope.launch {
+                                try {
+                                    findFreeCellAndPlaceWidget()
+                                } catch (e: Exception) {
+                                    android.util.Log.e("WIDGET_DEBUG", "Crash findFreeCell", e)
+                                    Toast.makeText(this@HomeActivity, "Errore: ${e.message}", Toast.LENGTH_LONG).show()
+                                    if (pendingWidgetId != -1) {
+                                        appWidgetHost.deleteAppWidgetId(pendingWidgetId)
+                                        pendingWidgetId = -1
+                                    }
+                                }
+                            }
                         }
                     }
                 } else {
@@ -281,7 +292,18 @@ class HomeActivity : AppCompatActivity() {
                         }
                         startActivityForResult(intent, REQUEST_CONFIGURE_WIDGET)
                     } else {
-                        saveWidgetToHome()
+                        lifecycleScope.launch {
+                            try {
+                                findFreeCellAndPlaceWidget()
+                            } catch (e: Exception) {
+                                android.util.Log.e("WIDGET_DEBUG", "Crash post-bind", e)
+                                Toast.makeText(this@HomeActivity, "Errore: ${e.message}", Toast.LENGTH_LONG).show()
+                                if (pendingWidgetId != -1) {
+                                    appWidgetHost.deleteAppWidgetId(pendingWidgetId)
+                                    pendingWidgetId = -1
+                                }
+                            }
+                        }
                     }
                 } else {
                     Toast.makeText(this, R.string.widget_bind_denied, Toast.LENGTH_SHORT).show()
@@ -297,6 +319,19 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private suspend fun findFreeCellAndPlaceWidget() {
+        android.util.Log.d("WIDGET_DEBUG", "findFreeCell: id=$pendingWidgetId, cols=$currentCols, rows=$currentRows")
+
+        if (pendingWidgetId == -1) {
+            Toast.makeText(this@HomeActivity, "ID widget non valido", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (currentCols <= 0 || currentRows <= 0) {
+            Toast.makeText(this@HomeActivity, "Griglia non valida", Toast.LENGTH_SHORT).show()
+            appWidgetHost.deleteAppWidgetId(pendingWidgetId)
+            pendingWidgetId = -1
+            return
+        }
+
         val slots = Prefs.homeSlotsFlow(this@HomeActivity).first()
         val widgets = Prefs.widgetSlotsFlow(this@HomeActivity).first()
         val occupied = mutableSetOf<Pair<Int, Int>>()
@@ -315,8 +350,6 @@ class HomeActivity : AppCompatActivity() {
             return
         }
 
-        // Calcolo delle celle: prima targetCellWidth/targetCellHeight (Android 12+),
-        // poi fallback su minWidth/minHeight con la formula ufficiale Android.
         var widthCells = 0
         var heightCells = 0
 
@@ -392,6 +425,7 @@ class HomeActivity : AppCompatActivity() {
                 saveWidgetToHome()
             }
         } catch (e: Exception) {
+            android.util.Log.e("WIDGET_DEBUG", "createView fallita, provo bind", e)
             val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingWidgetId)
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, info.provider)
@@ -435,57 +469,64 @@ class HomeActivity : AppCompatActivity() {
 
     private fun renderWidgets() {
         lifecycleScope.launch {
-            val widgets = Prefs.widgetSlotsFlow(this@HomeActivity).first()
-            val recycler = homePagerAdapter.getRecycler(homeViewPager.currentItem) ?: return@launch
+            try {
+                val widgets = Prefs.widgetSlotsFlow(this@HomeActivity).first()
+                val recycler = homePagerAdapter.getRecycler(homeViewPager.currentItem) ?: return@launch
 
-            if (recycler.width == 0 || recycler.height == 0) {
-                homeViewPager.postDelayed({ renderWidgets() }, 100)
-                return@launch
-            }
-            if (widgetOverlay.width == 0 || widgetOverlay.height == 0) {
-                homeViewPager.postDelayed({ renderWidgets() }, 100)
-                return@launch
-            }
-
-            widgetOverlay.removeAllViews()
-
-            val cellW = recycler.width / currentCols
-            val cellH = (recycler.height - recycler.paddingTop - recycler.paddingBottom) / currentRows
-
-            val recyclerLoc = IntArray(2)
-            recycler.getLocationOnScreen(recyclerLoc)
-            val overlayLoc = IntArray(2)
-            widgetOverlay.getLocationOnScreen(overlayLoc)
-            val offsetX = recyclerLoc[0] - overlayLoc[0]
-            val offsetY = recyclerLoc[1] - overlayLoc[1]
-
-            widgets.filter { it.page == homeViewPager.currentItem }.forEach { slot ->
-                val info = appWidgetManager.getAppWidgetInfo(slot.appWidgetId) ?: return@forEach
-                val hostView = appWidgetHost.createView(baseContext, slot.appWidgetId, info) as LauncherAppWidgetHostView
-                hostView.setAppWidget(slot.appWidgetId, info)
-
-                // Comunica al widget la dimensione reale che occupa nella griglia
-                val newOptions = Bundle()
-                hostView.updateAppWidgetSize(
-                    newOptions,
-                    cellW * slot.widthCells,
-                    cellH * slot.heightCells,
-                    cellW * slot.widthCells,
-                    cellH * slot.heightCells
-                )
-
-                val lp = FrameLayout.LayoutParams(
-                    cellW * slot.widthCells,
-                    cellH * slot.heightCells
-                ).apply {
-                    leftMargin = offsetX + slot.col * cellW
-                    topMargin = offsetY + recycler.paddingTop + slot.row * cellH
+                if (recycler.width == 0 || recycler.height == 0) {
+                    homeViewPager.postDelayed({ renderWidgets() }, 100)
+                    return@launch
                 }
-                widgetOverlay.addView(hostView, lp)
-
-                hostView.onLongPress = {
-                    showWidgetMenu(slot, info, cellW, cellH, recycler)
+                if (widgetOverlay.width == 0 || widgetOverlay.height == 0) {
+                    homeViewPager.postDelayed({ renderWidgets() }, 100)
+                    return@launch
                 }
+
+                widgetOverlay.removeAllViews()
+
+                val cellW = recycler.width / currentCols
+                val cellH = (recycler.height - recycler.paddingTop - recycler.paddingBottom) / currentRows
+
+                val recyclerLoc = IntArray(2)
+                recycler.getLocationOnScreen(recyclerLoc)
+                val overlayLoc = IntArray(2)
+                widgetOverlay.getLocationOnScreen(overlayLoc)
+                val offsetX = recyclerLoc[0] - overlayLoc[0]
+                val offsetY = recyclerLoc[1] - overlayLoc[1]
+
+                widgets.filter { it.page == homeViewPager.currentItem }.forEach { slot ->
+                    try {
+                        val info = appWidgetManager.getAppWidgetInfo(slot.appWidgetId) ?: return@forEach
+                        val hostView = appWidgetHost.createView(baseContext, slot.appWidgetId, info) as LauncherAppWidgetHostView
+                        hostView.setAppWidget(slot.appWidgetId, info)
+
+                        val newOptions = Bundle()
+                        hostView.updateAppWidgetSize(
+                            newOptions,
+                            cellW * slot.widthCells,
+                            cellH * slot.heightCells,
+                            cellW * slot.widthCells,
+                            cellH * slot.heightCells
+                        )
+
+                        val lp = FrameLayout.LayoutParams(
+                            cellW * slot.widthCells,
+                            cellH * slot.heightCells
+                        ).apply {
+                            leftMargin = offsetX + slot.col * cellW
+                            topMargin = offsetY + recycler.paddingTop + slot.row * cellH
+                        }
+                        widgetOverlay.addView(hostView, lp)
+
+                        hostView.onLongPress = {
+                            showWidgetMenu(slot, info, cellW, cellH, recycler)
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("WIDGET_DEBUG", "Errore render widget ${slot.appWidgetId}", e)
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("WIDGET_DEBUG", "Crash in renderWidgets", e)
             }
         }
     }
@@ -534,13 +575,17 @@ class HomeActivity : AppCompatActivity() {
         }
         addItem("Rimuovi widget") {
             lifecycleScope.launch {
-                val current = Prefs.widgetSlotsFlow(this@HomeActivity).first()
-                Prefs.setWidgetSlots(
-                    this@HomeActivity,
-                    current.filter { it.appWidgetId != slot.appWidgetId }
-                )
-                appWidgetHost.deleteAppWidgetId(slot.appWidgetId)
-                renderWidgets()
+                try {
+                    val current = Prefs.widgetSlotsFlow(this@HomeActivity).first()
+                    Prefs.setWidgetSlots(
+                        this@HomeActivity,
+                        current.filter { it.appWidgetId != slot.appWidgetId }
+                    )
+                    appWidgetHost.deleteAppWidgetId(slot.appWidgetId)
+                    renderWidgets()
+                } catch (e: Exception) {
+                    android.util.Log.e("WIDGET_DEBUG", "Errore rimozione widget", e)
+                }
             }
         }
 
