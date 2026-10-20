@@ -315,28 +315,29 @@ class HomeActivity : AppCompatActivity() {
             return
         }
 
-        // Leggi la dimensione target dichiarata dal widget (Android 12+)
+        // Calcolo delle celle: prima targetCellWidth/targetCellHeight (Android 12+),
+        // poi fallback su minWidth/minHeight con la formula ufficiale Android.
+        var widthCells = 0
+        var heightCells = 0
+
         if (android.os.Build.VERSION.SDK_INT >= 31) {
-            val targetW = info.targetCellWidth
-            val targetH = info.targetCellHeight
-            if (targetW > 0) pendingWidgetWidthCells = targetW.coerceAtMost(currentCols)
-            if (targetH > 0) pendingWidgetHeightCells = targetH.coerceAtMost(currentRows)
+            if (info.targetCellWidth > 0) widthCells = info.targetCellWidth
+            if (info.targetCellHeight > 0) heightCells = info.targetCellHeight
         }
 
-        // Se il widget non dichiara target, stima da minWidth/minHeight
-        if (pendingWidgetWidthCells <= 0 || pendingWidgetHeightCells <= 0) {
-            val density = resources.displayMetrics.density
-            val minWpx = info.minWidth
-            val minHpx = info.minHeight
-            if (minWpx > 0) {
-                pendingWidgetWidthCells = ((minWpx / (72 * density)) + 0.5f).toInt()
-                    .coerceIn(1, currentCols)
+        if (widthCells <= 0 || heightCells <= 0) {
+            // Formula ufficiale: minWidth = (celle * 73) - 16
+            // Quindi: celle = (minWidth + 16) / 73
+            if (widthCells <= 0 && info.minWidth > 0) {
+                widthCells = ((info.minWidth + 16) / 73f).toInt().coerceAtLeast(1)
             }
-            if (minHpx > 0) {
-                pendingWidgetHeightCells = ((minHpx / (72 * density)) + 0.5f).toInt()
-                    .coerceIn(1, currentRows)
+            if (heightCells <= 0 && info.minHeight > 0) {
+                heightCells = ((info.minHeight + 16) / 73f).toInt().coerceAtLeast(1)
             }
         }
+
+        pendingWidgetWidthCells = widthCells.coerceIn(1, currentCols)
+        pendingWidgetHeightCells = heightCells.coerceIn(1, currentRows)
 
         var found = false
         for (r in 0..(currentRows - pendingWidgetHeightCells)) {
