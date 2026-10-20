@@ -994,14 +994,16 @@ class HomeActivity : AppCompatActivity() {
     }
 
     fun onDragFromDrawerStarted() {
-        drawerOverlay.visibility = View.GONE
-        drawerOverlay.alpha = 1f
-        drawerOpen = false
-        homeViewPager.visibility = View.VISIBLE
-        pageIndicator.visibility = View.VISIBLE
-        dockLayout.visibility = View.VISIBLE
-        loadHomeApps()
-    }
+    drawerOverlay.visibility = View.GONE
+    drawerOverlay.alpha = 1f
+    drawerOpen = false
+    homeViewPager.visibility = View.VISIBLE
+    pageIndicator.visibility = View.VISIBLE
+    dockLayout.visibility = View.VISIBLE
+    widgetOverlay.visibility = View.VISIBLE
+    loadHomeApps()
+    homeViewPager.postDelayed({ renderWidgets() }, 200)
+}
 
     fun onDragFromDrawerEnded() {
         if (!drawerOpen) drawerOverlay.alpha = 1f
