@@ -223,9 +223,30 @@ class HomeActivity : AppCompatActivity() {
             REQUEST_PICK_WIDGET -> {
                 if (resultCode == RESULT_OK && data != null) {
                     val widgetId = data.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1)
+                    val needsBind = data.getBooleanExtra(WidgetPickerActivity.EXTRA_NEEDS_BIND, false)
+                    val provider: android.content.ComponentName? =
+                        if (android.os.Build.VERSION.SDK_INT >= 33) {
+                            data.getParcelableExtra(
+                                WidgetPickerActivity.EXTRA_PROVIDER,
+                                android.content.ComponentName::class.java
+                            )
+                        } else {
+                            @Suppress("DEPRECATION")
+                            data.getParcelableExtra(WidgetPickerActivity.EXTRA_PROVIDER)
+                        }
+
                     if (widgetId != -1) {
                         pendingWidgetId = widgetId
-                        lifecycleScope.launch { findFreeCellAndPlaceWidget() }
+                        if (needsBind && provider != null) {
+                            val bindIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_BIND).apply {
+                                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+                                putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, provider)
+                                putExtra(AppWidgetManager.EXTRA_APPWIDGET_OPTIONS, Bundle())
+                            }
+                            startActivityForResult(bindIntent, REQUEST_BIND_WIDGET)
+                        } else {
+                            lifecycleScope.launch { findFreeCellAndPlaceWidget() }
+                        }
                     }
                 } else {
                     if (pendingWidgetId != -1) {
