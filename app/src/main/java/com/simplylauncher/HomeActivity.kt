@@ -30,6 +30,8 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlin.math.ceil
+import kotlin.math.max
 
 class HomeActivity : AppCompatActivity() {
 
@@ -342,6 +344,43 @@ class HomeActivity : AppCompatActivity() {
             return
         }
 
+        // Formula Fossify: prima targetCell (API 31+), poi minWidth/minHeight con getCellCount
+        var widthCells = 0
+        var heightCells = 0
+
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            if (info.targetCellWidth > 0) widthCells = info.targetCellWidth
+            if (info.targetCellHeight > 0) heightCells = info.targetCellHeight
+        }
+
+        if (widthCells <= 0 && info.minWidth > 0) {
+            widthCells = getCellCount(info.minWidth)
+        }
+        if (heightCells <= 0 && info.minHeight > 0) {
+            heightCells = getCellCount(info.minHeight)
+        }
+
+        if (widthCells <= 0) widthCells = 1
+        if (heightCells <= 0) heightCells = 1
+
+        pendingWidgetWidthCells = widthCells.coerceIn(1, currentCols)
+        pendingWidgetHeightCells = heightCells.coerceIn(1, currentRows)
+
+        android.util.Log.d(
+            "WIDGET_DEBUG",
+            "Widget $pendingWidgetId: minW=${info.minWidth}, minH=${info.minHeight}, " +
+            "targetW=${info.targetCellWidth}, targetH=${info.targetCellHeight}, " +
+            "calcolate=${pendingWidgetWidthCells}x${pendingWidgetHeightCells}, " +
+            "griglia=${currentCols}x${currentRows}"
+        )
+
+        if (pendingWidgetWidthCells > currentCols || pendingWidgetHeightCells > currentRows) {
+            Toast.makeText(this@HomeActivity, "Widget troppo grande per la griglia", Toast.LENGTH_SHORT).show()
+            appWidgetHost.deleteAppWidgetId(pendingWidgetId)
+            pendingWidgetId = -1
+            return
+        }
+
         var found = false
         for (r in 0..(currentRows - pendingWidgetHeightCells)) {
             for (c in 0..(currentCols - pendingWidgetWidthCells)) {
@@ -388,6 +427,12 @@ class HomeActivity : AppCompatActivity() {
             }
             startActivityForResult(intent, REQUEST_BIND_WIDGET)
         }
+    }
+
+    private fun getCellCount(sizeDp: Int): Int {
+        val density = resources.displayMetrics.density
+        val tiles = ceil(((sizeDp / density) - 30) / 70.0).toInt()
+        return max(tiles, 1)
     }
 
     private fun saveWidgetToHome() {
@@ -455,10 +500,26 @@ class HomeActivity : AppCompatActivity() {
                         val hostView = appWidgetHost.createView(baseContext, slot.appWidgetId, info) as LauncherAppWidgetHostView
                         hostView.setAppWidget(slot.appWidgetId, info)
 
-                        val lp = FrameLayout.LayoutParams(
-                            cellW * slot.widthCells,
-                            cellH * slot.heightCells
-                        ).apply {
+                        val widgetWidth = cellW * slot.widthCells
+                        val widgetHeight = cellH * slot.heightCells
+
+                        // Fossify: passa la dimensione in DP, non in pixel
+                        val density = resources.displayMetrics.density
+                        val widgetDpWidth = (widgetWidth / density).toInt()
+                        val widgetDpHeight = (widgetHeight / density).toInt()
+
+                        if (android.os.Build.VERSION.SDK_INT >= 31) {
+                            try {
+                                val sizes = listOf(android.util.SizeF(widgetDpWidth.toFloat(), widgetDpHeight.toFloat()))
+                                hostView.updateAppWidgetSize(Bundle(), sizes)
+                            } catch (_: Exception) {}
+                        } else {
+                            try {
+                                hostView.updateAppWidgetSize(Bundle(), widgetDpWidth, widgetDpHeight, widgetDpWidth, widgetDpHeight)
+                            } catch (_: Exception) {}
+                        }
+
+                        val lp = FrameLayout.LayoutParams(widgetWidth, widgetHeight).apply {
                             leftMargin = offsetX + slot.col * cellW
                             topMargin = offsetY + recycler.paddingTop + slot.row * cellH
                         }
@@ -466,6 +527,9 @@ class HomeActivity : AppCompatActivity() {
 
                         hostView.onLongPress = {
                             showWidgetMenu(slot, info, cellW, cellH, recycler)
+                        }
+                        hostView.onIgnoreIntercepted = {
+                            widgetPopupWindow?.dismiss()
                         }
                     } catch (e: Exception) {
                         android.util.Log.e("WIDGET_DEBUG", "Errore render widget ${slot.appWidgetId}", e)
