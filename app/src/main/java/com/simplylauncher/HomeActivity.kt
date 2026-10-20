@@ -472,8 +472,8 @@ class HomeActivity : AppCompatActivity() {
 
         val minW = info.minResizeWidth
         val minH = info.minResizeHeight
-        val minCellsW = max(1, minW / cellW).coerceAtMost(currentCols)
-        val minCellsH = max(1, minH / cellH).coerceAtMost(currentRows)
+        val minCellsW = (minW / cellW).coerceAtLeast(1).coerceAtMost(currentCols)
+        val minCellsH = (minH / cellH).coerceAtLeast(1).coerceAtMost(currentRows)
 
         resizeFrame.configure(
             frameLeft = frameLeft,
