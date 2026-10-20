@@ -287,11 +287,19 @@ class HomeActivity : AppCompatActivity() {
                     }
 
                     if (info.configure != null) {
-                        val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
-                            component = info.configure
-                            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, boundId)
+                        try {
+                            appWidgetHost.startAppWidgetConfigureActivityForResult(
+                                this@HomeActivity,
+                                pendingWidgetId,
+                                0,
+                                REQUEST_CONFIGURE_WIDGET,
+                                null
+                            )
+                        } catch (e: Exception) {
+                            android.util.Log.e("WIDGET_DEBUG", "Errore avvio configurazione", e)
+                            appWidgetHost.deleteAppWidgetId(pendingWidgetId)
+                            pendingWidgetId = -1
                         }
-                        startActivityForResult(intent, REQUEST_CONFIGURE_WIDGET)
                     } else {
                         lifecycleScope.launch {
                             try {
@@ -400,11 +408,19 @@ class HomeActivity : AppCompatActivity() {
         }
 
         if (info.configure != null) {
-            val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE).apply {
-                component = info.configure
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingWidgetId)
+            try {
+                appWidgetHost.startAppWidgetConfigureActivityForResult(
+                    this@HomeActivity,
+                    pendingWidgetId,
+                    0,
+                    REQUEST_CONFIGURE_WIDGET,
+                    null
+                )
+            } catch (e: Exception) {
+                android.util.Log.e("WIDGET_DEBUG", "Errore avvio configurazione", e)
+                appWidgetHost.deleteAppWidgetId(pendingWidgetId)
+                pendingWidgetId = -1
             }
-            startActivityForResult(intent, REQUEST_CONFIGURE_WIDGET)
         } else {
             saveWidgetToHome()
         }
