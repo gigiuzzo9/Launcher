@@ -3,8 +3,8 @@ package com.simplylauncher
 import android.app.Activity
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
+import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
 import android.util.TypedValue
@@ -39,15 +39,12 @@ class WidgetPickerActivity : AppCompatActivity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.WHITE)
             setPadding(0, dp(16), 0, dp(16))
         }
 
-        // Titolo
         val title = TextView(this).apply {
             text = "Scegli un widget"
             textSize = 20f
-            setTextColor(Color.BLACK)
             setPadding(dp(24), dp(16), dp(24), dp(16))
             setTypeface(typeface, Typeface.BOLD)
         }
@@ -76,7 +73,6 @@ class WidgetPickerActivity : AppCompatActivity() {
             val empty = TextView(this).apply {
                 text = "Nessun widget disponibile"
                 textSize = 16f
-                setTextColor(Color.GRAY)
                 gravity = Gravity.CENTER
                 setPadding(0, dp(48), 0, 0)
             }
@@ -89,7 +85,9 @@ class WidgetPickerActivity : AppCompatActivity() {
     }
 
     private fun createWidgetRow(info: AppWidgetProviderInfo): LinearLayout {
-        val row = LinearLayout(this).apply {
+        val ctx: Context = this
+
+        val row = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(16))
@@ -102,47 +100,46 @@ class WidgetPickerActivity : AppCompatActivity() {
             setBackgroundResource(outValue.resourceId)
         }
 
-        val icon = ImageView(this).apply {
+        val icon = ImageView(ctx).apply {
             layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply {
                 marginEnd = dp(16)
             }
             try {
-                val preview = info.loadPreviewImage(this@WidgetPickerActivity, 0)
+                val preview = info.loadPreviewImage(ctx, 0)
                 if (preview != null) {
                     setImageDrawable(preview)
                 } else {
-                    setImageDrawable(info.loadIcon(packageManager, 0))
+                    setImageDrawable(info.loadIcon(ctx.packageManager, 0))
                 }
             } catch (e: Exception) {
                 try {
-                    setImageDrawable(info.loadIcon(packageManager, 0))
+                    setImageDrawable(info.loadIcon(ctx.packageManager, 0))
                 } catch (_: Exception) {}
             }
         }
         row.addView(icon)
 
-        val texts = LinearLayout(this).apply {
+        val texts = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         }
 
-        val label = TextView(this).apply {
-            text = info.loadLabel(packageManager)
+        val label = TextView(ctx).apply {
+            text = info.loadLabel(ctx.packageManager)
             textSize = 16f
-            setTextColor(Color.BLACK)
         }
         texts.addView(label)
 
         val appName = try {
-            val ai = packageManager.getApplicationInfo(info.provider.packageName, 0)
-            packageManager.getApplicationLabel(ai).toString()
+            val ai = ctx.packageManager.getApplicationInfo(info.provider.packageName, 0)
+            ctx.packageManager.getApplicationLabel(ai).toString()
         } catch (e: Exception) {
             ""
         }
-        val providerName = TextView(this).apply {
+        val providerName = TextView(ctx).apply {
             text = appName
             textSize = 13f
-            setTextColor(Color.GRAY)
+            alpha = 0.6f
         }
         texts.addView(providerName)
 
