@@ -677,7 +677,10 @@ class HomeActivity : AppCompatActivity() {
             }
         }
     }
-    if (ev.actionMasked == MotionEvent.ACTION_DOWN && ::widgetOverlay.isInitialized) {
+    if (ev.actionMasked == MotionEvent.ACTION_DOWN &&
+        ::widgetOverlay.isInitialized &&
+        widgetOverlay.visibility == View.VISIBLE
+    ) {
         val loc = IntArray(2)
         widgetOverlay.getLocationOnScreen(loc)
         val localX = ev.rawX - loc[0]
@@ -686,8 +689,10 @@ class HomeActivity : AppCompatActivity() {
         var isOnWidget = false
         for (i in 0 until widgetOverlay.childCount) {
             val child = widgetOverlay.getChildAt(i)
-            if (localX >= child.x && localX <= child.x + child.width &&
-                localY >= child.y && localY <= child.y + child.height) {
+            if (child.visibility == View.VISIBLE &&
+                localX >= child.x && localX <= child.x + child.width &&
+                localY >= child.y && localY <= child.y + child.height
+            ) {
                 isOnWidget = true
                 break
             }
@@ -698,7 +703,7 @@ class HomeActivity : AppCompatActivity() {
         }
     }
     return super.dispatchTouchEvent(ev)
-    }
+}
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         if (resizeOverlay.visibility == View.VISIBLE) {
