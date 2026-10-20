@@ -8,15 +8,7 @@ import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
 
-/**
- * Cornice di resize per un widget.
- * Mostra 4 maniglie (sinistra, destra, sopra, sotto) e gestisce il trascinamento.
- *
- * Al rilascio chiama onResizeEnd con le nuove coordinate in celle.
- */
 class WidgetResizeFrame @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
@@ -33,16 +25,14 @@ class WidgetResizeFrame @JvmOverloads constructor(
         style = Paint.Style.STROKE
     }
 
-    private val handleRadiusPx = 8f * resources.displayMetrics.density
-    private val handleTouchRadiusPx = 24f * resources.displayMetrics.density
+    private val handleRadiusPx = 12f * resources.displayMetrics.density
+    private val handleTouchRadiusPx = 32f * resources.displayMetrics.density
 
-    // Dimensioni in pixel della cornice
     private var frameLeft = 0
     private var frameTop = 0
     private var frameRight = 0
     private var frameBottom = 0
 
-    // Dimensioni in celle
     private var cellLeft = 0
     private var cellTop = 0
     private var cellRight = 0
@@ -54,8 +44,8 @@ class WidgetResizeFrame @JvmOverloads constructor(
     private var minCellsHeight = 1
     private var maxCellsWidth = 4
     private var maxCellsHeight = 6
-    private var offsetX = 0
-    private var offsetY = 0
+    private var gridOffsetX = 0
+    private var gridOffsetY = 0
 
     private var activeHandle = HANDLE_NONE
     private var startTouchX = 0f
@@ -76,26 +66,13 @@ class WidgetResizeFrame @JvmOverloads constructor(
         private const val HANDLE_BOTTOM = 4
     }
 
-    /**
-     * Configura la cornice.
-     * @param frameRect posizione in pixel della cornice (relativa al parent)
-     * @param cellLeft/right/top/bottom coordinate in celle del widget
-     * @param cellWidthPx larghezza in pixel di una cella
-     * @param cellHeightPx altezza in pixel di una cella
-     * @param minCellsWidth larghezza minima in celle
-     * @param minCellsHeight altezza minima in celle
-     * @param maxCellsWidth larghezza massima in celle
-     * @param maxCellsHeight altezza massima in celle
-     * @param offsetX offset X della griglia rispetto al parent
-     * @param offsetY offset Y della griglia rispetto al parent
-     */
     fun configure(
         frameLeft: Int, frameTop: Int, frameRight: Int, frameBottom: Int,
         cellLeft: Int, cellTop: Int, cellRight: Int, cellBottom: Int,
         cellWidthPx: Int, cellHeightPx: Int,
         minCellsWidth: Int, minCellsHeight: Int,
         maxCellsWidth: Int, maxCellsHeight: Int,
-        offsetX: Int, offsetY: Int
+        gridOffsetX: Int, gridOffsetY: Int
     ) {
         this.frameLeft = frameLeft
         this.frameTop = frameTop
@@ -111,8 +88,8 @@ class WidgetResizeFrame @JvmOverloads constructor(
         this.minCellsHeight = minCellsHeight
         this.maxCellsWidth = maxCellsWidth
         this.maxCellsHeight = maxCellsHeight
-        this.offsetX = offsetX
-        this.offsetY = offsetY
+        this.gridOffsetX = gridOffsetX
+        this.gridOffsetY = gridOffsetY
         invalidate()
     }
 
@@ -140,14 +117,14 @@ class WidgetResizeFrame @JvmOverloads constructor(
                 when (activeHandle) {
                     HANDLE_LEFT -> {
                         val newLeft = (startCellLeft + dxCells).coerceIn(
-                            max(0, startCellRight - maxCellsWidth + 1),
+                            maxOf(0, startCellRight - maxCellsWidth + 1),
                             startCellRight - minCellsWidth + 1
                         )
                         cellLeft = newLeft
                     }
                     HANDLE_TOP -> {
                         val newTop = (startCellTop + dyCells).coerceIn(
-                            max(0, startCellBottom - maxCellsHeight + 1),
+                            maxOf(0, startCellBottom - maxCellsHeight + 1),
                             startCellBottom - minCellsHeight + 1
                         )
                         cellTop = newTop
@@ -155,18 +132,24 @@ class WidgetResizeFrame @JvmOverloads constructor(
                     HANDLE_RIGHT -> {
                         val newRight = (startCellRight + dxCells).coerceIn(
                             startCellLeft + minCellsWidth - 1,
-                            min(startCellLeft + maxCellsWidth - 1, maxCellsWidth - 1)
+                            minOf(startCellLeft + maxCellsWidth - 1, maxCellsWidth - 1)
                         )
                         cellRight = newRight
                     }
                     HANDLE_BOTTOM -> {
                         val newBottom = (startCellBottom + dyCells).coerceIn(
                             startCellTop + minCellsHeight - 1,
-                            min(startCellTop + maxCellsHeight - 1, maxCellsHeight - 1)
+                            minOf(startCellTop + maxCellsHeight - 1, maxCellsHeight - 1)
                         )
                         cellBottom = newBottom
                     }
                 }
+
+                // Aggiorna i bordi visivi in base alle nuove celle
+                frameLeft = gridOffsetX + cellLeft * cellWidthPx
+                frameTop = gridOffsetY + cellTop * cellHeightPx
+                frameRight = gridOffsetX + (cellRight + 1) * cellWidthPx
+                frameBottom = gridOffsetY + (cellBottom + 1) * cellHeightPx
                 invalidate()
                 return true
             }
@@ -185,13 +168,9 @@ class WidgetResizeFrame @JvmOverloads constructor(
         val w = frameRight - frameLeft
         val h = frameBottom - frameTop
 
-        // Handle sinistro
         if (abs(x - 0f) < handleTouchRadiusPx && y > 0 && y < h) return HANDLE_LEFT
-        // Handle destro
         if (abs(x - w) < handleTouchRadiusPx && y > 0 && y < h) return HANDLE_RIGHT
-        // Handle superiore
         if (abs(y - 0f) < handleTouchRadiusPx && x > 0 && x < w) return HANDLE_TOP
-        // Handle inferiore
         if (abs(y - h) < handleTouchRadiusPx && x > 0 && x < w) return HANDLE_BOTTOM
 
         return HANDLE_NONE
@@ -200,7 +179,6 @@ class WidgetResizeFrame @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        // Disegna bordo
         canvas.drawRect(
             frameLeft.toFloat() + handleRadiusPx,
             frameTop.toFloat() + handleRadiusPx,
@@ -209,17 +187,12 @@ class WidgetResizeFrame @JvmOverloads constructor(
             borderPaint
         )
 
-        // Disegna maniglie
         val cx = (frameLeft + frameRight) / 2f
         val cy = (frameTop + frameBottom) / 2f
 
-        // Sinistra
         canvas.drawCircle(frameLeft.toFloat(), cy, handleRadiusPx, handlePaint)
-        // Destra
         canvas.drawCircle(frameRight.toFloat(), cy, handleRadiusPx, handlePaint)
-        // Sopra
         canvas.drawCircle(cx, frameTop.toFloat(), handleRadiusPx, handlePaint)
-        // Sotto
         canvas.drawCircle(cx, frameBottom.toFloat(), handleRadiusPx, handlePaint)
     }
 }
