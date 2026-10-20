@@ -21,12 +21,12 @@ class WidgetResizeFrame @JvmOverloads constructor(
     }
     private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
-        strokeWidth = 2f * resources.displayMetrics.density
+        strokeWidth = 3f * resources.displayMetrics.density
         style = Paint.Style.STROKE
     }
 
-    private val handleRadiusPx = 12f * resources.displayMetrics.density
-    private val handleTouchRadiusPx = 32f * resources.displayMetrics.density
+    private val handleRadiusPx = 16f * resources.displayMetrics.density
+    private val handleTouchRadiusPx = 48f * resources.displayMetrics.density
 
     private var frameLeft = 0
     private var frameTop = 0
@@ -116,36 +116,31 @@ class WidgetResizeFrame @JvmOverloads constructor(
 
                 when (activeHandle) {
                     HANDLE_LEFT -> {
-                        val newLeft = (startCellLeft + dxCells).coerceIn(
+                        cellLeft = (startCellLeft + dxCells).coerceIn(
                             maxOf(0, startCellRight - maxCellsWidth + 1),
                             startCellRight - minCellsWidth + 1
                         )
-                        cellLeft = newLeft
                     }
                     HANDLE_TOP -> {
-                        val newTop = (startCellTop + dyCells).coerceIn(
+                        cellTop = (startCellTop + dyCells).coerceIn(
                             maxOf(0, startCellBottom - maxCellsHeight + 1),
                             startCellBottom - minCellsHeight + 1
                         )
-                        cellTop = newTop
                     }
                     HANDLE_RIGHT -> {
-                        val newRight = (startCellRight + dxCells).coerceIn(
+                        cellRight = (startCellRight + dxCells).coerceIn(
                             startCellLeft + minCellsWidth - 1,
                             minOf(startCellLeft + maxCellsWidth - 1, maxCellsWidth - 1)
                         )
-                        cellRight = newRight
                     }
                     HANDLE_BOTTOM -> {
-                        val newBottom = (startCellBottom + dyCells).coerceIn(
+                        cellBottom = (startCellBottom + dyCells).coerceIn(
                             startCellTop + minCellsHeight - 1,
                             minOf(startCellTop + maxCellsHeight - 1, maxCellsHeight - 1)
                         )
-                        cellBottom = newBottom
                     }
                 }
 
-                // Aggiorna i bordi visivi in base alle nuove celle
                 frameLeft = gridOffsetX + cellLeft * cellWidthPx
                 frameTop = gridOffsetY + cellTop * cellHeightPx
                 frameRight = gridOffsetX + (cellRight + 1) * cellWidthPx
