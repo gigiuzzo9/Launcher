@@ -182,14 +182,12 @@ class HomeActivity : AppCompatActivity() {
                         pendingWidgetId = widgetId
                         val info = appWidgetManager.getAppWidgetInfo(widgetId)
                         if (info != null) {
-                            // ORA cerca la cella libera e poi procedi
                             lifecycleScope.launch {
                                 findFreeCellAndProceed(info)
                             }
                         }
                     }
                 } else {
-                    // Utente ha annullato: elimina l'ID allocato
                     if (pendingWidgetId != -1) {
                         appWidgetHost.deleteAppWidgetId(pendingWidgetId)
                         pendingWidgetId = -1
@@ -307,7 +305,6 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun startWidgetPicker() {
-        // Alloca l'ID e apri SUBITO il picker di sistema
         val appWidgetId = appWidgetHost.allocateAppWidgetId()
         pendingWidgetId = appWidgetId
         pendingWidgetPage = homeViewPager.currentItem
@@ -316,9 +313,9 @@ class HomeActivity : AppCompatActivity() {
 
         val pickIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            // Dati extra vuoti: alcuni dispositivi richiedono questi per aprire il picker
             putParcelableArrayListExtra(AppWidgetManager.EXTRA_CUSTOM_INFO, ArrayList<AppWidgetProviderInfo>())
             putParcelableArrayListExtra(AppWidgetManager.EXTRA_CUSTOM_EXTRAS, ArrayList<Bundle>())
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         startActivityForResult(pickIntent, REQUEST_PICK_WIDGET)
     }
@@ -553,7 +550,10 @@ class HomeActivity : AppCompatActivity() {
 
     private fun setupHomePopup() {
         homePopupMenu = HomePopupMenu(this)
-        homePopupMenu.onAddWidget = { startWidgetPicker() }
+        homePopupMenu.onAddWidget = {
+            homePopupMenu.dismiss()
+            startWidgetPicker()
+        }
         homePopupMenu.onAddPage = {
             lifecycleScope.launch {
                 currentPageCount += 1
