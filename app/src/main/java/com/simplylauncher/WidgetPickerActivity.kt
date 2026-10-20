@@ -20,6 +20,8 @@ class WidgetPickerActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_APPWIDGET_ID = "picker_appwidget_id"
+        const val EXTRA_NEEDS_BIND = "picker_needs_bind"
+        const val EXTRA_PROVIDER = "picker_provider"
     }
 
     private lateinit var appWidgetManager: AppWidgetManager
@@ -139,8 +141,18 @@ class WidgetPickerActivity : AppCompatActivity() {
         row.addView(texts)
 
         row.setOnClickListener {
+            // Prova il bind diretto. Se non è permesso, chiedi alla Home
+            // di lanciare ACTION_APPWIDGET_BIND.
+            val bound = try {
+                appWidgetManager.bindAppWidgetIdIfAllowed(appWidgetId, info.provider)
+            } catch (e: Exception) {
+                false
+            }
+
             val result = Intent().apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra(EXTRA_NEEDS_BIND, !bound)
+                putExtra(EXTRA_PROVIDER, info.provider)
             }
             setResult(Activity.RESULT_OK, result)
             finish()
