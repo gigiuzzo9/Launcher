@@ -256,7 +256,6 @@ class HomeActivity : AppCompatActivity() {
             }
             REQUEST_BIND_WIDGET -> {
                 if (resultCode == RESULT_OK) {
-                    // Rileggi l'ID dall'intent di risultato, non usare ciecamente pendingWidgetId
                     val boundId = data?.getIntExtra(
                         AppWidgetManager.EXTRA_APPWIDGET_ID,
                         pendingWidgetId
@@ -307,8 +306,40 @@ class HomeActivity : AppCompatActivity() {
                 for (c in it.col until it.col + it.widthCells) occupied.add(r to c)
             }
         }
+
+        val info = appWidgetManager.getAppWidgetInfo(pendingWidgetId)
+        if (info == null) {
+            Toast.makeText(this@HomeActivity, "Widget non valido", Toast.LENGTH_SHORT).show()
+            appWidgetHost.deleteAppWidgetId(pendingWidgetId)
+            pendingWidgetId = -1
+            return
+        }
+
+        // Leggi la dimensione target dichiarata dal widget (Android 12+)
+        if (android.os.Build.VERSION.SDK_INT >= 31) {
+            val targetW = info.targetCellWidth
+            val targetH = info.targetCellHeight
+            if (targetW > 0) pendingWidgetWidthCells = targetW.coerceAtMost(currentCols)
+            if (targetH > 0) pendingWidgetHeightCells = targetH.coerceAtMost(currentRows)
+        }
+
+        // Se il widget non dichiara target, stima da minWidth/minHeight
+        if (pendingWidgetWidthCells <= 0 || pendingWidgetHeightCells <= 0) {
+            val density = resources.displayMetrics.density
+            val minWpx = info.minWidth
+            val minHpx = info.minHeight
+            if (minWpx > 0) {
+                pendingWidgetWidthCells = ((minWpx / (72 * density)) + 0.5f).toInt()
+                    .coerceIn(1, currentCols)
+            }
+            if (minHpx > 0) {
+                pendingWidgetHeightCells = ((minHpx / (72 * density)) + 0.5f).toInt()
+                    .coerceIn(1, currentRows)
+            }
+        }
+
         var found = false
-        for (r in 0 until currentRows) {
+        for (r in 0..(currentRows - pendingWidgetHeightCells)) {
             for (c in 0..(currentCols - pendingWidgetWidthCells)) {
                 var free = true
                 for (dr in 0 until pendingWidgetHeightCells) {
@@ -326,16 +357,9 @@ class HomeActivity : AppCompatActivity() {
             }
             if (found) break
         }
+
         if (!found) {
             Toast.makeText(this@HomeActivity, "Nessuno spazio libero", Toast.LENGTH_SHORT).show()
-            appWidgetHost.deleteAppWidgetId(pendingWidgetId)
-            pendingWidgetId = -1
-            return
-        }
-
-        val info = appWidgetManager.getAppWidgetInfo(pendingWidgetId)
-        if (info == null) {
-            Toast.makeText(this@HomeActivity, "Widget non valido", Toast.LENGTH_SHORT).show()
             appWidgetHost.deleteAppWidgetId(pendingWidgetId)
             pendingWidgetId = -1
             return
@@ -424,6 +448,16 @@ class HomeActivity : AppCompatActivity() {
                 val info = appWidgetManager.getAppWidgetInfo(slot.appWidgetId) ?: return@forEach
                 val hostView = appWidgetHost.createView(baseContext, slot.appWidgetId, info) as LauncherAppWidgetHostView
                 hostView.setAppWidget(slot.appWidgetId, info)
+
+                // Comunica al widget la dimensione reale che occupa nella griglia
+                val newOptions = Bundle()
+                hostView.updateAppWidgetSize(
+                    newOptions,
+                    cellW * slot.widthCells,
+                    cellH * slot.heightCells,
+                    cellW * slot.widthCells,
+                    cellH * slot.heightCells
+                )
 
                 val lp = FrameLayout.LayoutParams(
                     cellW * slot.widthCells,
