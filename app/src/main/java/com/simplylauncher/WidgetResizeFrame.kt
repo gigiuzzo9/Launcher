@@ -160,13 +160,10 @@ class WidgetResizeFrame @JvmOverloads constructor(
     }
 
     private fun detectHandle(x: Float, y: Float): Int {
-        val w = frameRight - frameLeft
-        val h = frameBottom - frameTop
-
-        if (abs(x - 0f) < handleTouchRadiusPx && y > 0 && y < h) return HANDLE_LEFT
-        if (abs(x - w) < handleTouchRadiusPx && y > 0 && y < h) return HANDLE_RIGHT
-        if (abs(y - 0f) < handleTouchRadiusPx && x > 0 && x < w) return HANDLE_TOP
-        if (abs(y - h) < handleTouchRadiusPx && x > 0 && x < w) return HANDLE_BOTTOM
+        if (abs(x - frameLeft) < handleTouchRadiusPx && y > frameTop && y < frameBottom) return HANDLE_LEFT
+        if (abs(x - frameRight) < handleTouchRadiusPx && y > frameTop && y < frameBottom) return HANDLE_RIGHT
+        if (abs(y - frameTop) < handleTouchRadiusPx && x > frameLeft && x < frameRight) return HANDLE_TOP
+        if (abs(y - frameBottom) < handleTouchRadiusPx && x > frameLeft && x < frameRight) return HANDLE_BOTTOM
 
         return HANDLE_NONE
     }
