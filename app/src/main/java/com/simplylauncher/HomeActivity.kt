@@ -5,7 +5,6 @@ import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.BroadcastReceiver
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -314,22 +313,17 @@ class HomeActivity : AppCompatActivity() {
 
         val pickIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_PICK).apply {
             putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-            putParcelableArrayListExtra(AppWidgetManager.EXTRA_CUSTOM_INFO, null)
-            putParcelableArrayListExtra(AppWidgetManager.EXTRA_CUSTOM_EXTRAS, null)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            // Forza il picker di sistema di Android
-            component = ComponentName(
-                "com.android.settings",
-                "com.android.settings.AppWidgetPickActivity"
+            // QUESTE DUE RIGHE SONO OBBLIGATORIE PER APRIRE IL PICKER DI SISTEMA
+            putParcelableArrayListExtra(
+                AppWidgetManager.EXTRA_CUSTOM_INFO,
+                ArrayList<AppWidgetProviderInfo>()
+            )
+            putParcelableArrayListExtra(
+                AppWidgetManager.EXTRA_CUSTOM_EXTRAS,
+                ArrayList<Bundle>()
             )
         }
-        try {
-            startActivityForResult(pickIntent, REQUEST_PICK_WIDGET)
-        } catch (_: Exception) {
-            // Fallback senza componente forzato
-            pickIntent.component = null
-            startActivityForResult(pickIntent, REQUEST_PICK_WIDGET)
-        }
+        startActivityForResult(pickIntent, REQUEST_PICK_WIDGET)
     }
 
     private fun renderWidgets() {
