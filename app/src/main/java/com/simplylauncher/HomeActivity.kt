@@ -42,7 +42,6 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var dockDrawerButton: FrameLayout
     private lateinit var dockLayout: View
     private lateinit var dockSlots: List<FrameLayout>
-    private lateinit var widgetOverlay: FrameLayout
     private lateinit var resizeOverlay: FrameLayout
     private lateinit var resizeFrame: WidgetResizeFrame
 
@@ -107,7 +106,6 @@ class HomeActivity : AppCompatActivity() {
         emptyMessage = findViewById(R.id.emptyMessage)
         dockDrawerButton = findViewById(R.id.dockDrawerButton)
         dockLayout = findViewById(R.id.dockLayout)
-        widgetOverlay = findViewById(R.id.widgetOverlay)
         resizeOverlay = findViewById(R.id.resizeOverlay)
         resizeFrame = findViewById(R.id.resizeFrame)
 
@@ -467,75 +465,66 @@ class HomeActivity : AppCompatActivity() {
     private fun renderWidgets() {
         lifecycleScope.launch {
             try {
-                val widgets = Prefs.widgetSlotsFlow(this@HomeActivity).first()
-                val recycler = homePagerAdapter.getRecycler(homeViewPager.currentItem) ?: return@launch
+                val allWidgets = Prefs.widgetSlotsFlow(this@HomeActivity).first()
 
-                if (recycler.width == 0 || recycler.height == 0) {
-                    homeViewPager.postDelayed({ renderWidgets() }, 200)
-                    return@launch
-                }
-                if (widgetOverlay.width == 0 || widgetOverlay.height == 0) {
-                    homeViewPager.postDelayed({ renderWidgets() }, 200)
-                    return@launch
-                }
+                for (pageIndex in 0 until currentPageCount) {
+                    val widgetContainer = homePagerAdapter.getWidgetContainer(pageIndex) ?: continue
+                    val recycler = homePagerAdapter.getRecycler(pageIndex) ?: continue
 
-                widgetOverlay.removeAllViews()
+                    if (recycler.width == 0 || recycler.height == 0) continue
 
-                val cellW = recycler.width / currentCols
-                val cellH = (recycler.height - recycler.paddingTop - recycler.paddingBottom) / currentRows
+                    widgetContainer.removeAllViews()
 
-                val recyclerLoc = IntArray(2)
-                recycler.getLocationOnScreen(recyclerLoc)
-                val overlayLoc = IntArray(2)
-                widgetOverlay.getLocationOnScreen(overlayLoc)
-                val offsetX = recyclerLoc[0] - overlayLoc[0]
-                val offsetY = recyclerLoc[1] - overlayLoc[1]
+                    val cellW = recycler.width / currentCols
+                    val cellH = (recycler.height - recycler.paddingTop - recycler.paddingBottom) / currentRows
 
-                widgets.filter { it.page == homeViewPager.currentItem }.forEach { slot ->
-                    try {
-                        val info = appWidgetManager.getAppWidgetInfo(slot.appWidgetId) ?: return@forEach
-                        val hostView = appWidgetHost.createView(baseContext, slot.appWidgetId, info) as LauncherAppWidgetHostView
-                        hostView.setAppWidget(slot.appWidgetId, info)
+                    val pageWidgets = allWidgets.filter { it.page == pageIndex }
+                    for (slot in pageWidgets) {
+                        try {
+                            val info = appWidgetManager.getAppWidgetInfo(slot.appWidgetId) ?: continue
+                            val hostView = appWidgetHost.createView(baseContext, slot.appWidgetId, info) as LauncherAppWidgetHostView
+                            hostView.setAppWidget(slot.appWidgetId, info)
 
-                        val widgetWidth = cellW * slot.widthCells
-                        val widgetHeight = cellH * slot.heightCells
+                            val widgetWidth = cellW * slot.widthCells
+                            val widgetHeight = cellH * slot.heightCells
 
-                        val lp = FrameLayout.LayoutParams(widgetWidth, widgetHeight).apply {
-                            leftMargin = offsetX + slot.col * cellW
-                            topMargin = offsetY + recycler.paddingTop + slot.row * cellH
+                            val lp = FrameLayout.LayoutParams(widgetWidth, widgetHeight).apply {
+                                leftMargin = slot.col * cellW
+                                topMargin = recycler.paddingTop + slot.row * cellH
+                            }
+                            widgetContainer.addView(hostView, lp)
+
+                            hostView.post {
+                                try {
+                                    val density = resources.displayMetrics.density
+                                    val wDp = (widgetWidth / density).toInt()
+                                    val hDp = (widgetHeight / density).toInt()
+                                    if (android.os.Build.VERSION.SDK_INT >= 31) {
+                                        hostView.updateAppWidgetSize(
+                                            Bundle(),
+                                            listOf(SizeF(wDp.toFloat(), hDp.toFloat()))
+                                        )
+                                    } else {
+                                        hostView.updateAppWidgetSize(
+                                            Bundle(),
+                                            wDp,
+                                            hDp,
+                                            wDp,
+                                            hDp
+                                        )
+                                    }
+                                } catch (_: Exception) {}
+                            }
+
+                            hostView.onLongPress = {
+                                showWidgetMenu(slot, info, cellW, cellH, recycler)
+                            }
+                            hostView.onIgnoreIntercepted = {
+                                widgetPopupWindow?.dismiss()
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("WIDGET_DEBUG", "Errore render widget ${slot.appWidgetId}", e)
                         }
-                        widgetOverlay.addView(hostView, lp)
-
-                        hostView.post {
-                            try {
-                                val density = resources.displayMetrics.density
-                                val wDp = (widgetWidth / density).toInt()
-                                val hDp = (widgetHeight / density).toInt()
-                                if (android.os.Build.VERSION.SDK_INT >= 31) {
-                                    hostView.updateAppWidgetSize(
-                                        Bundle(),
-                                        listOf(SizeF(wDp.toFloat(), hDp.toFloat()))
-                                    )
-                                } else {
-                                    hostView.updateAppWidgetSize(
-                                        Bundle(),
-                                        wDp,
-                                        hDp,
-                                        wDp,
-                                        hDp
-                                    )
-                                }
-                            } catch (_: Exception) {}
-                        }
-
-                        hostView.onLongPress = {
-                            showWidgetMenu(slot, info, cellW, cellH, recycler)
-                        }
-                        hostView.onIgnoreIntercepted = {
-                            widgetPopupWindow?.dismiss()
-                        }
-                    } catch (e: Exception) {
-                        android.util.Log.e("WIDGET_DEBUG", "Errore render widget ${slot.appWidgetId}", e)
                     }
                 }
             } catch (e: Exception) {
@@ -677,31 +666,6 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
         }
-        if (ev.actionMasked == MotionEvent.ACTION_DOWN &&
-            ::widgetOverlay.isInitialized &&
-            widgetOverlay.visibility == View.VISIBLE
-        ) {
-            val loc = IntArray(2)
-            widgetOverlay.getLocationOnScreen(loc)
-            val localX = ev.rawX - loc[0]
-            val localY = ev.rawY - loc[1]
-
-            var isOnWidget = false
-            for (i in 0 until widgetOverlay.childCount) {
-                val child = widgetOverlay.getChildAt(i)
-                if (child.visibility == View.VISIBLE &&
-                    localX >= child.x && localX <= child.x + child.width &&
-                    localY >= child.y && localY <= child.y + child.height
-                ) {
-                    isOnWidget = true
-                    break
-                }
-            }
-
-            if (isOnWidget) {
-                return widgetOverlay.dispatchTouchEvent(ev)
-            }
-        }
         return super.dispatchTouchEvent(ev)
     }
 
@@ -731,23 +695,23 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun setupHomePager() {
-    homeViewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
-        override fun onPageSelected(position: Int) {
-            pageIndicator.setCurrentPage(position)
-        }
-
-        override fun onPageScrollStateChanged(state: Int) {
-            if (state == ViewPager2.SCROLL_STATE_IDLE) {
-                homeViewPager.postDelayed({
-                    recalculateCellHeight()
-                    renderWidgets()
-                }, 100)
+        homeViewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+            override fun onPageSelected(position: Int) {
+                pageIndicator.setCurrentPage(position)
             }
-        }
-    })
-}
 
-private fun setupDragController() {
+            override fun onPageScrollStateChanged(state: Int) {
+                if (state == ViewPager2.SCROLL_STATE_IDLE) {
+                    homeViewPager.postDelayed({
+                        recalculateCellHeight()
+                        renderWidgets()
+                    }, 100)
+                }
+            }
+        })
+    }
+
+    private fun setupDragController() {
         dragController = DragController(
             activity = this,
             homeRecyclerView = homeViewPager,
@@ -999,16 +963,15 @@ private fun setupDragController() {
     }
 
     fun onDragFromDrawerStarted() {
-    drawerOverlay.visibility = View.GONE
-    drawerOverlay.alpha = 1f
-    drawerOpen = false
-    homeViewPager.visibility = View.VISIBLE
-    pageIndicator.visibility = View.VISIBLE
-    dockLayout.visibility = View.VISIBLE
-    widgetOverlay.visibility = View.VISIBLE
-    loadHomeApps()
-    homeViewPager.postDelayed({ renderWidgets() }, 200)
-}
+        drawerOverlay.visibility = View.GONE
+        drawerOverlay.alpha = 1f
+        drawerOpen = false
+        homeViewPager.visibility = View.VISIBLE
+        pageIndicator.visibility = View.VISIBLE
+        dockLayout.visibility = View.VISIBLE
+        loadHomeApps()
+        homeViewPager.postDelayed({ renderWidgets() }, 200)
+    }
 
     fun onDragFromDrawerEnded() {
         if (!drawerOpen) drawerOverlay.alpha = 1f
@@ -1026,107 +989,107 @@ private fun setupDragController() {
     }
 
     private fun handleDropOnHome(pkg: String, x: Float, y: Float): Boolean {
-    if (isDropInProgress) return false
-    isDropInProgress = true
-    val pageIndex = homeViewPager.currentItem
-    val recycler = homePagerAdapter.getRecycler(pageIndex)
-    if (recycler == null) { isDropInProgress = false; return false }
-    val lm = recycler.layoutManager as? GridLayoutManager
-    if (lm == null) { isDropInProgress = false; return false }
-    val cols = lm.spanCount
+        if (isDropInProgress) return false
+        isDropInProgress = true
+        val pageIndex = homeViewPager.currentItem
+        val recycler = homePagerAdapter.getRecycler(pageIndex)
+        if (recycler == null) { isDropInProgress = false; return false }
+        val lm = recycler.layoutManager as? GridLayoutManager
+        if (lm == null) { isDropInProgress = false; return false }
+        val cols = lm.spanCount
 
-    lifecycleScope.launch {
-        try {
-            val widgetSlots = Prefs.widgetSlotsFlow(this@HomeActivity).first()
-            val widgetCells = mutableSetOf<Pair<Int, Int>>()
-            widgetSlots.filter { it.page == pageIndex }.forEach { w ->
-                for (r in w.row until w.row + w.heightCells) {
-                    for (c in w.col until w.col + w.widthCells) {
-                        widgetCells.add(r to c)
+        lifecycleScope.launch {
+            try {
+                val widgetSlots = Prefs.widgetSlotsFlow(this@HomeActivity).first()
+                val widgetCells = mutableSetOf<Pair<Int, Int>>()
+                widgetSlots.filter { it.page == pageIndex }.forEach { w ->
+                    for (r in w.row until w.row + w.heightCells) {
+                        for (c in w.col until w.col + w.widthCells) {
+                            widgetCells.add(r to c)
+                        }
                     }
                 }
-            }
 
-            val pagerLoc = IntArray(2); homeViewPager.getLocationOnScreen(pagerLoc)
-            val recyclerLoc = IntArray(2); recycler.getLocationOnScreen(recyclerLoc)
-            val rvX = x + pagerLoc[0] - recyclerLoc[0]
-            val rvY = y + pagerLoc[1] - recyclerLoc[1]
+                val pagerLoc = IntArray(2); homeViewPager.getLocationOnScreen(pagerLoc)
+                val recyclerLoc = IntArray(2); recycler.getLocationOnScreen(recyclerLoc)
+                val rvX = x + pagerLoc[0] - recyclerLoc[0]
+                val rvY = y + pagerLoc[1] - recyclerLoc[1]
 
-            val child = recycler.findChildViewUnder(rvX, rvY)
-            var targetPos = if (child != null) {
-                recycler.getChildAdapterPosition(child)
-            } else {
-                val cellH = (recycler.height - recycler.paddingTop - recycler.paddingBottom) / currentRows
-                val cellW = recycler.width / cols.toFloat()
-                val col = (rvX / cellW).toInt().coerceIn(0, cols - 1)
-                val row = (rvY / cellH).toInt().coerceIn(0, currentRows - 1)
-                row * cols + col
-            }
-            if (targetPos == RecyclerView.NO_POSITION) { isDropInProgress = false; return@launch }
-
-            val adapter = recycler.adapter as? HomeGridAdapter
-            if (adapter == null) { isDropInProgress = false; return@launch }
-
-            var currentList = adapter.currentList.toMutableList()
-            if (targetPos !in currentList.indices) { isDropInProgress = false; return@launch }
-
-            val targetRow = currentList[targetPos].row
-            val targetCol = currentList[targetPos].col
-            if (widgetCells.contains(targetRow to targetCol)) {
-                val freeIndex = currentList.indexOfFirst { slot ->
-                    slot.packageName.isBlank() && !widgetCells.contains(slot.row to slot.col)
+                val child = recycler.findChildViewUnder(rvX, rvY)
+                var targetPos = if (child != null) {
+                    recycler.getChildAdapterPosition(child)
+                } else {
+                    val cellH = (recycler.height - recycler.paddingTop - recycler.paddingBottom) / currentRows
+                    val cellW = recycler.width / cols.toFloat()
+                    val col = (rvX / cellW).toInt().coerceIn(0, cols - 1)
+                    val row = (rvY / cellH).toInt().coerceIn(0, currentRows - 1)
+                    row * cols + col
                 }
-                if (freeIndex == -1) {
-                    isDropInProgress = false
-                    return@launch
+                if (targetPos == RecyclerView.NO_POSITION) { isDropInProgress = false; return@launch }
+
+                val adapter = recycler.adapter as? HomeGridAdapter
+                if (adapter == null) { isDropInProgress = false; return@launch }
+
+                val currentList = adapter.currentList.toMutableList()
+                if (targetPos !in currentList.indices) { isDropInProgress = false; return@launch }
+
+                val targetRow = currentList[targetPos].row
+                val targetCol = currentList[targetPos].col
+                if (widgetCells.contains(targetRow to targetCol)) {
+                    val freeIndex = currentList.indexOfFirst { slot ->
+                        slot.packageName.isBlank() && !widgetCells.contains(slot.row to slot.col)
+                    }
+                    if (freeIndex == -1) {
+                        isDropInProgress = false
+                        return@launch
+                    }
+                    targetPos = freeIndex
                 }
-                targetPos = freeIndex
+
+                val sourceIndex = currentList.indexOfFirst { it.packageName == pkg }
+                val targetSlot = currentList[targetPos]
+
+                if (sourceIndex == -1) {
+                    currentList[targetPos] = HomeSlot(pkg, targetSlot.row, targetSlot.col, pageIndex)
+                    adapter.submitList(currentList)
+                    try {
+                        val slots = Prefs.homeSlotsFlow(this@HomeActivity).first().toMutableList()
+                        slots.removeAll { it.packageName == pkg }
+                        slots.removeAll { it.page == pageIndex && it.row == targetSlot.row && it.col == targetSlot.col }
+                        slots.add(HomeSlot(pkg, targetSlot.row, targetSlot.col, pageIndex))
+                        Prefs.setHomeSlots(this@HomeActivity, slots)
+                        val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
+                        if (dockItems.contains(pkg)) {
+                            Prefs.setDockItems(this@HomeActivity, dockItems.map { if (it == pkg) "" else it })
+                            dockController.refresh()
+                        }
+                    } finally { isDropInProgress = false }
+                } else {
+                    val sourceSlot = currentList[sourceIndex]
+                    currentList[sourceIndex] = HomeSlot(targetSlot.packageName, sourceSlot.row, sourceSlot.col, pageIndex)
+                    currentList[targetPos] = HomeSlot(pkg, targetSlot.row, targetSlot.col, pageIndex)
+                    adapter.submitList(currentList)
+                    try {
+                        val slots = Prefs.homeSlotsFlow(this@HomeActivity).first().toMutableList()
+                        slots.removeAll { it.packageName == pkg }
+                        slots.removeAll { it.page == pageIndex && it.row == targetSlot.row && it.col == targetSlot.col }
+                        slots.add(HomeSlot(pkg, targetSlot.row, targetSlot.col, pageIndex))
+                        if (sourceSlot.packageName.isNotBlank() && sourceSlot.packageName != pkg) {
+                            slots.removeAll { it.packageName == sourceSlot.packageName }
+                            slots.add(HomeSlot(sourceSlot.packageName, sourceSlot.row, sourceSlot.col, pageIndex))
+                        }
+                        Prefs.setHomeSlots(this@HomeActivity, slots)
+                    } finally { isDropInProgress = false }
+                }
+
+                homeViewPager.postDelayed({ renderWidgets() }, 200)
+            } catch (e: Exception) {
+                android.util.Log.e("WIDGET_DEBUG", "Errore drop home", e)
+                isDropInProgress = false
             }
-
-            val sourceIndex = currentList.indexOfFirst { it.packageName == pkg }
-            val targetSlot = currentList[targetPos]
-
-            if (sourceIndex == -1) {
-                currentList[targetPos] = HomeSlot(pkg, targetSlot.row, targetSlot.col, pageIndex)
-                adapter.submitList(currentList)
-                try {
-                    val slots = Prefs.homeSlotsFlow(this@HomeActivity).first().toMutableList()
-                    slots.removeAll { it.packageName == pkg }
-                    slots.removeAll { it.page == pageIndex && it.row == targetSlot.row && it.col == targetSlot.col }
-                    slots.add(HomeSlot(pkg, targetSlot.row, targetSlot.col, pageIndex))
-                    Prefs.setHomeSlots(this@HomeActivity, slots)
-                    val dockItems = Prefs.dockItemsFlow(this@HomeActivity).first()
-                    if (dockItems.contains(pkg)) {
-                        Prefs.setDockItems(this@HomeActivity, dockItems.map { if (it == pkg) "" else it })
-                        dockController.refresh()
-                    }
-                } finally { isDropInProgress = false }
-            } else {
-                val sourceSlot = currentList[sourceIndex]
-                currentList[sourceIndex] = HomeSlot(targetSlot.packageName, sourceSlot.row, sourceSlot.col, pageIndex)
-                currentList[targetPos] = HomeSlot(pkg, targetSlot.row, targetSlot.col, pageIndex)
-                adapter.submitList(currentList)
-                try {
-                    val slots = Prefs.homeSlotsFlow(this@HomeActivity).first().toMutableList()
-                    slots.removeAll { it.packageName == pkg }
-                    slots.removeAll { it.page == pageIndex && it.row == targetSlot.row && it.col == targetSlot.col }
-                    slots.add(HomeSlot(pkg, targetSlot.row, targetSlot.col, pageIndex))
-                    if (sourceSlot.packageName.isNotBlank() && sourceSlot.packageName != pkg) {
-                        slots.removeAll { it.packageName == sourceSlot.packageName }
-                        slots.add(HomeSlot(sourceSlot.packageName, sourceSlot.row, sourceSlot.col, pageIndex))
-                    }
-                    Prefs.setHomeSlots(this@HomeActivity, slots)
-                } finally { isDropInProgress = false }
-            }
-
-            homeViewPager.postDelayed({ renderWidgets() }, 200)
-        } catch (e: Exception) {
-            android.util.Log.e("WIDGET_DEBUG", "Errore drop home", e)
-            isDropInProgress = false
         }
+        return true
     }
-    return true
-}
 
     private fun handleDropOnDrawer(pkg: String) {
         lifecycleScope.launch {
@@ -1240,7 +1203,6 @@ private fun setupDragController() {
         pageIndicator.visibility = View.INVISIBLE
         dockLayout.visibility = View.INVISIBLE
         emptyMessage.visibility = View.INVISIBLE
-        widgetOverlay.visibility = View.INVISIBLE
         resizeOverlay.visibility = View.GONE
         resizeFrame.visibility = View.GONE
         applyDrawerBackground()
@@ -1250,16 +1212,15 @@ private fun setupDragController() {
     }
 
     private fun closeDrawer() {
-    if (!drawerOpen) return
-    drawerOpen = false
-    drawerOverlay.visibility = View.GONE
-    homeViewPager.visibility = View.VISIBLE
-    pageIndicator.visibility = View.VISIBLE
-    dockLayout.visibility = View.VISIBLE
-    widgetOverlay.visibility = View.VISIBLE
-    loadHomeApps()
-    homeViewPager.postDelayed({ renderWidgets() }, 500)
-}
+        if (!drawerOpen) return
+        drawerOpen = false
+        drawerOverlay.visibility = View.GONE
+        homeViewPager.visibility = View.VISIBLE
+        pageIndicator.visibility = View.VISIBLE
+        dockLayout.visibility = View.VISIBLE
+        loadHomeApps()
+        homeViewPager.postDelayed({ renderWidgets() }, 500)
+    }
 
     private fun applyDrawerBackground() {
         lifecycleScope.launch {
