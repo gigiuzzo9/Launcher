@@ -433,29 +433,64 @@ class HomeActivity : AppCompatActivity() {
     cellH: Int,
     recycler: RecyclerView
 ) {
-    val options = arrayOf("Ridimensiona", "Rimuovi widget")
+    val ctx = this
+    val density = resources.displayMetrics.density
+    fun dp(v: Int) = (v * density).toInt()
 
-    val builder = AlertDialog.Builder(this, androidx.appcompat.R.style.Theme_AppCompat_Light_Dialog_Alert)
-        .setTitle("Widget")
-        .setItems(options) { _, which ->
-            when (which) {
-                0 -> startResize(slot, info, cellW, cellH, recycler)
-                1 -> {
-                    lifecycleScope.launch {
-                        val current = Prefs.widgetSlotsFlow(this@HomeActivity).first()
-                        Prefs.setWidgetSlots(
-                            this@HomeActivity,
-                            current.filter { it.appWidgetId != slot.appWidgetId }
-                        )
-                        appWidgetHost.deleteAppWidgetId(slot.appWidgetId)
-                        renderWidgets()
-                    }
-                }
+    val container = android.widget.LinearLayout(ctx).apply {
+        orientation = android.widget.LinearLayout.VERTICAL
+        setPadding(dp(8), dp(8), dp(8), dp(8))
+        val drawable = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = dp(6).toFloat()
+            setColor(Color.WHITE)
+        }
+        background = drawable
+        elevation = 8f * density
+    }
+
+    fun addItem(text: String, onClick: () -> Unit) {
+        val tv = TextView(ctx).apply {
+            this.text = text
+            setTextColor(Color.BLACK)
+            textSize = 15f
+            setPadding(dp(20), dp(14), dp(20), dp(14))
+            val outValue = android.util.TypedValue()
+            context.theme.resolveAttribute(android.R.attr.selectableItemBackground, outValue, true)
+            setBackgroundResource(outValue.resourceId)
+            setOnClickListener {
+                onClick()
+                popupWindow?.dismiss()
             }
         }
+        container.addView(tv)
+    }
 
-    val dialog = builder.create()
-    dialog.show()
+    addItem("Ridimensiona") {
+        startResize(slot, info, cellW, cellH, recycler)
+    }
+    addItem("Rimuovi widget") {
+        lifecycleScope.launch {
+            val current = Prefs.widgetSlotsFlow(this@HomeActivity).first()
+            Prefs.setWidgetSlots(
+                this@HomeActivity,
+                current.filter { it.appWidgetId != slot.appWidgetId }
+            )
+            appWidgetHost.deleteAppWidgetId(slot.appWidgetId)
+            renderWidgets()
+        }
+    }
+
+    popupWindow = android.widget.PopupWindow(
+        container,
+        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+        true
+    ).apply {
+        isOutsideTouchable = true
+        isFocusable = true
+        setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+        showAtLocation(recycler, Gravity.CENTER, 0, 0)
+    }
 }
 
     private fun startResize(
