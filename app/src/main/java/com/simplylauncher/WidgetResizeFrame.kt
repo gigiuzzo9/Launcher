@@ -21,12 +21,12 @@ class WidgetResizeFrame @JvmOverloads constructor(
     }
     private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
-        strokeWidth = 3f * resources.displayMetrics.density
+        strokeWidth = 2f * resources.displayMetrics.density
         style = Paint.Style.STROKE
     }
 
-    private val handleRadiusPx = 16f * resources.displayMetrics.density
-    private val handleTouchRadiusPx = 48f * resources.displayMetrics.density
+    private val handleRadiusPx = 8f * resources.displayMetrics.density
+    private val handleTouchRadiusPx = 24f * resources.displayMetrics.density
 
     private var frameLeft = 0
     private var frameTop = 0
