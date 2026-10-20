@@ -365,14 +365,6 @@ class HomeActivity : AppCompatActivity() {
         pendingWidgetWidthCells = widthCells.coerceIn(1, currentCols)
         pendingWidgetHeightCells = heightCells.coerceIn(1, currentRows)
 
-        android.util.Log.d(
-            "WIDGET_DEBUG",
-            "Widget $pendingWidgetId: minW=${info.minWidth}, minH=${info.minHeight}, " +
-            "targetW=${info.targetCellWidth}, targetH=${info.targetCellHeight}, " +
-            "calcolate=${pendingWidgetWidthCells}x${pendingWidgetHeightCells}, " +
-            "griglia=${currentCols}x${currentRows}"
-        )
-
         if (pendingWidgetWidthCells > currentCols || pendingWidgetHeightCells > currentRows) {
             Toast.makeText(this@HomeActivity, "Widget troppo grande per la griglia", Toast.LENGTH_SHORT).show()
             appWidgetHost.deleteAppWidgetId(pendingWidgetId)
@@ -502,26 +494,33 @@ class HomeActivity : AppCompatActivity() {
                         val widgetWidth = cellW * slot.widthCells
                         val widgetHeight = cellH * slot.heightCells
 
-                        val density = resources.displayMetrics.density
-                        val widgetDpWidth = (widgetWidth / density).toInt()
-                        val widgetDpHeight = (widgetHeight / density).toInt()
-
-                        if (android.os.Build.VERSION.SDK_INT >= 31) {
-                            try {
-                                val sizes = listOf(SizeF(widgetDpWidth.toFloat(), widgetDpHeight.toFloat()))
-                                hostView.updateAppWidgetSize(Bundle(), sizes)
-                            } catch (_: Exception) {}
-                        } else {
-                            try {
-                                hostView.updateAppWidgetSize(Bundle(), widgetDpWidth, widgetDpHeight, widgetDpWidth, widgetDpHeight)
-                            } catch (_: Exception) {}
-                        }
-
                         val lp = FrameLayout.LayoutParams(widgetWidth, widgetHeight).apply {
                             leftMargin = offsetX + slot.col * cellW
                             topMargin = offsetY + recycler.paddingTop + slot.row * cellH
                         }
                         widgetOverlay.addView(hostView, lp)
+
+                        hostView.post {
+                            try {
+                                val density = resources.displayMetrics.density
+                                val wDp = (widgetWidth / density).toInt()
+                                val hDp = (widgetHeight / density).toInt()
+                                if (android.os.Build.VERSION.SDK_INT >= 31) {
+                                    hostView.updateAppWidgetSize(
+                                        Bundle(),
+                                        listOf(SizeF(wDp.toFloat(), hDp.toFloat()))
+                                    )
+                                } else {
+                                    hostView.updateAppWidgetSize(
+                                        Bundle(),
+                                        wDp,
+                                        hDp,
+                                        wDp,
+                                        hDp
+                                    )
+                                }
+                            } catch (_: Exception) {}
+                        }
 
                         hostView.onLongPress = {
                             showWidgetMenu(slot, info, cellW, cellH, recycler)
