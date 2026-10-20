@@ -12,6 +12,7 @@ import android.graphics.Color
 import android.graphics.Rect
 import android.os.Bundle
 import android.provider.Settings
+import android.util.SizeF
 import android.view.DragEvent
 import android.view.Gravity
 import android.view.MotionEvent
@@ -500,6 +501,21 @@ class HomeActivity : AppCompatActivity() {
 
                         val widgetWidth = cellW * slot.widthCells
                         val widgetHeight = cellH * slot.heightCells
+
+                        val density = resources.displayMetrics.density
+                        val widgetDpWidth = (widgetWidth / density).toInt()
+                        val widgetDpHeight = (widgetHeight / density).toInt()
+
+                        if (android.os.Build.VERSION.SDK_INT >= 31) {
+                            try {
+                                val sizes = listOf(SizeF(widgetDpWidth.toFloat(), widgetDpHeight.toFloat()))
+                                hostView.updateAppWidgetSize(Bundle(), sizes)
+                            } catch (_: Exception) {}
+                        } else {
+                            try {
+                                hostView.updateAppWidgetSize(Bundle(), widgetDpWidth, widgetDpHeight, widgetDpWidth, widgetDpHeight)
+                            } catch (_: Exception) {}
+                        }
 
                         val lp = FrameLayout.LayoutParams(widgetWidth, widgetHeight).apply {
                             leftMargin = offsetX + slot.col * cellW
