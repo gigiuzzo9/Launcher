@@ -6,12 +6,6 @@ import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
 
-/**
- * AppWidgetHostView personalizzata che rileva il long-press in modo affidabile,
- * anche se il widget consuma i tocchi (pulsanti, clock, ecc.).
- *
- * Usa un Handler con postDelayed per il long-press, cancellato su move/up.
- */
 class LauncherAppWidgetHostView(context: Context) : AppWidgetHostView(context) {
 
     var onLongPress: (() -> Unit)? = null
@@ -42,9 +36,5 @@ class LauncherAppWidgetHostView(context: Context) : AppWidgetHostView(context) {
             }
         }
         return super.onInterceptTouchEvent(ev)
-    }
-
-    fun cancelLongPress() {
-        handler.removeCallbacks(longPressRunnable)
     }
 }
