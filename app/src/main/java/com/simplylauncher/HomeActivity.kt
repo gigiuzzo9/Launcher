@@ -430,9 +430,10 @@ class HomeActivity : AppCompatActivity() {
         cellH: Int,
         recycler: RecyclerView
     ) {
-        val dialog = AlertDialog.Builder(this)
+        val options = arrayOf("Ridimensiona", "Rimuovi widget")
+        val dialog = AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Light_Dialog_NoActionBar)
             .setTitle("Widget")
-            .setItems(arrayOf("Ridimensiona", "Rimuovi widget")) { _, which ->
+            .setItems(options) { _, which ->
                 when (which) {
                     0 -> startResize(slot, info, cellW, cellH, recycler)
                     1 -> {
@@ -450,9 +451,9 @@ class HomeActivity : AppCompatActivity() {
             }
             .create()
 
-        // Sfondo bianco per il dialog
         dialog.setOnShowListener {
             dialog.window?.setBackgroundDrawable(ColorDrawable(Color.WHITE))
+            dialog.window?.decorView?.setBackgroundColor(Color.WHITE)
         }
         dialog.show()
     }
@@ -466,7 +467,6 @@ class HomeActivity : AppCompatActivity() {
     ) {
         resizingWidgetSlot = slot
 
-        // Coordinate assolute rispetto allo schermo
         val recyclerLoc = IntArray(2)
         recycler.getLocationOnScreen(recyclerLoc)
         val overlayLoc = IntArray(2)
@@ -503,6 +503,8 @@ class HomeActivity : AppCompatActivity() {
         )
 
         resizeOverlay.visibility = View.VISIBLE
+        resizeOverlay.bringToFront()
+        resizeOverlay.elevation = 20f * resources.displayMetrics.density
         resizeFrame.visibility = View.VISIBLE
     }
 
