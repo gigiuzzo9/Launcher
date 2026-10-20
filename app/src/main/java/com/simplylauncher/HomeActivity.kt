@@ -500,14 +500,7 @@ class HomeActivity : AppCompatActivity() {
                         val hostView = appWidgetHost.createView(baseContext, slot.appWidgetId, info) as LauncherAppWidgetHostView
                         hostView.setAppWidget(slot.appWidgetId, info)
 
-                        val newOptions = Bundle()
-                        hostView.updateAppWidgetSize(
-                            newOptions,
-                            cellW * slot.widthCells,
-                            cellH * slot.heightCells,
-                            cellW * slot.widthCells,
-                            cellH * slot.heightCells
-                        )
+                       
 
                         val lp = FrameLayout.LayoutParams(
                             cellW * slot.widthCells,
