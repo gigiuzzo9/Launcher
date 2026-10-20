@@ -325,19 +325,33 @@ class HomeActivity : AppCompatActivity() {
             if (info.targetCellHeight > 0) heightCells = info.targetCellHeight
         }
 
-        if (widthCells <= 0 || heightCells <= 0) {
-            // Formula ufficiale: minWidth = (celle * 73) - 16
-            // Quindi: celle = (minWidth + 16) / 73
-            if (widthCells <= 0 && info.minWidth > 0) {
-                widthCells = ((info.minWidth + 16) / 73f).toInt().coerceAtLeast(1)
-            }
-            if (heightCells <= 0 && info.minHeight > 0) {
-                heightCells = ((info.minHeight + 16) / 73f).toInt().coerceAtLeast(1)
-            }
+        if (widthCells <= 0 && info.minWidth > 0) {
+            widthCells = ((info.minWidth + 16) / 73f).toInt().coerceAtLeast(1)
         }
+        if (heightCells <= 0 && info.minHeight > 0) {
+            heightCells = ((info.minHeight + 16) / 73f).toInt().coerceAtLeast(1)
+        }
+
+        if (widthCells <= 0) widthCells = 1
+        if (heightCells <= 0) heightCells = 1
 
         pendingWidgetWidthCells = widthCells.coerceIn(1, currentCols)
         pendingWidgetHeightCells = heightCells.coerceIn(1, currentRows)
+
+        android.util.Log.d(
+            "WIDGET_DEBUG",
+            "Widget $pendingWidgetId: minW=${info.minWidth}, minH=${info.minHeight}, " +
+            "targetW=${info.targetCellWidth}, targetH=${info.targetCellHeight}, " +
+            "calcolate=${pendingWidgetWidthCells}x${pendingWidgetHeightCells}, " +
+            "griglia=${currentCols}x${currentRows}"
+        )
+
+        if (pendingWidgetWidthCells > currentCols || pendingWidgetHeightCells > currentRows) {
+            Toast.makeText(this@HomeActivity, "Widget troppo grande per la griglia", Toast.LENGTH_SHORT).show()
+            appWidgetHost.deleteAppWidgetId(pendingWidgetId)
+            pendingWidgetId = -1
+            return
+        }
 
         var found = false
         for (r in 0..(currentRows - pendingWidgetHeightCells)) {
