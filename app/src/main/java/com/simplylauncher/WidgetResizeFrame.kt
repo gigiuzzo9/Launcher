@@ -26,7 +26,7 @@ class WidgetResizeFrame @JvmOverloads constructor(
     }
 
     private val handleRadiusPx = 8f * resources.displayMetrics.density
-    private val handleTouchRadiusPx = 45f * resources.displayMetrics.density
+    private val handleTouchRadiusPx = 40f * resources.displayMetrics.density
 
     private var frameLeft = 0
     private var frameTop = 0
@@ -64,6 +64,11 @@ class WidgetResizeFrame @JvmOverloads constructor(
         private const val HANDLE_TOP = 2
         private const val HANDLE_RIGHT = 3
         private const val HANDLE_BOTTOM = 4
+    }
+
+    init {
+        isClickable = true
+        isFocusable = true
     }
 
     fun configure(
@@ -146,6 +151,7 @@ class WidgetResizeFrame @JvmOverloads constructor(
                 frameRight = gridOffsetX + (cellRight + 1) * cellWidthPx
                 frameBottom = gridOffsetY + (cellBottom + 1) * cellHeightPx
                 invalidate()
+                postInvalidateOnAnimation()
                 return true
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -160,10 +166,10 @@ class WidgetResizeFrame @JvmOverloads constructor(
     }
 
     private fun detectHandle(x: Float, y: Float): Int {
-        if (abs(x - frameLeft) < handleTouchRadiusPx && y > frameTop && y < frameBottom) return HANDLE_LEFT
-        if (abs(x - frameRight) < handleTouchRadiusPx && y > frameTop && y < frameBottom) return HANDLE_RIGHT
-        if (abs(y - frameTop) < handleTouchRadiusPx && x > frameLeft && x < frameRight) return HANDLE_TOP
-        if (abs(y - frameBottom) < handleTouchRadiusPx && x > frameLeft && x < frameRight) return HANDLE_BOTTOM
+        if (abs(x - frameLeft) < handleTouchRadiusPx) return HANDLE_LEFT
+        if (abs(x - frameRight) < handleTouchRadiusPx) return HANDLE_RIGHT
+        if (abs(y - frameTop) < handleTouchRadiusPx) return HANDLE_TOP
+        if (abs(y - frameBottom) < handleTouchRadiusPx) return HANDLE_BOTTOM
 
         return HANDLE_NONE
     }
