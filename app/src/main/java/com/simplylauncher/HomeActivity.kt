@@ -186,6 +186,41 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun endResizeMode() {
+    val slot = resizingWidgetSlot
+    val hostView = resizingWidgetView
+    if (slot != null && hostView != null) {
+        val recycler = homePagerAdapter.getRecycler(slot.page)
+        if (recycler != null) {
+            val cellW = recycler.width / currentCols
+            val cellH = (recycler.height - recycler.paddingTop - recycler.paddingBottom) / currentRows
+            val lp = hostView.layoutParams as FrameLayout.LayoutParams
+            val newWidthCells = (lp.width / cellW).coerceAtLeast(1)
+            val newHeightCells = (lp.height / cellH).coerceAtLeast(1)
+            val newCol = (lp.leftMargin / cellW).coerceAtLeast(0)
+            val newRow = ((lp.topMargin - recycler.paddingTop) / cellH).coerceAtLeast(0)
+
+            val newSlot = slot.copy(
+                row = newRow,
+                col = newCol,
+                widthCells = newWidthCells,
+                heightCells = newHeightCells
+            )
+
+            lifecycleScope.launch {
+                try {
+                    val widgets = Prefs.widgetSlotsFlow(this@HomeActivity).first().toMutableList()
+                    val index = widgets.indexOfFirst { it.appWidgetId == slot.appWidgetId }
+                    if (index != -1) {
+                        widgets[index] = newSlot
+                        Prefs.setWidgetSlots(this@HomeActivity, widgets)
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("WIDGET_DEBUG", "Errore salvataggio resize", e)
+                }
+            }
+        }
+    }
+
     resizingWidgetSlot = null
     resizingWidgetView = null
     isResizing = false
