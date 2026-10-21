@@ -198,8 +198,13 @@ class DragController(
 
     fun handleWidgetDragEvent(event: DragEvent, pageIndex: Int, cellW: Int, cellH: Int, paddingTop: Int): Boolean {
         when (event.action) {
-            DragEvent.ACTION_DRAG_STARTED ->
+            DragEvent.ACTION_DRAG_STARTED -> {
+                val source = event.clipDescription.label?.toString() ?: ""
+                if (source != SOURCE_WIDGET) {
+                    return false
+                }
                 return event.clipDescription.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN)
+            }
 
             DragEvent.ACTION_DROP -> {
                 val source = event.clipDescription.label?.toString() ?: ""
