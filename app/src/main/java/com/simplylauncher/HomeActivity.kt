@@ -477,6 +477,11 @@ class HomeActivity : AppCompatActivity() {
 
                     val cellW = recycler.width / currentCols
                     val cellH = (recycler.height - recycler.paddingTop - recycler.paddingBottom) / currentRows
+                    val paddingTop = recycler.paddingTop
+
+                    widgetContainer.setOnDragListener { _, event ->
+                        dragController.handleWidgetDragEvent(event, pageIndex, cellW, cellH, paddingTop)
+                    }
 
                     val pageWidgets = allWidgets.filter { it.page == pageIndex }
                     for (slot in pageWidgets) {
@@ -490,7 +495,7 @@ class HomeActivity : AppCompatActivity() {
 
                             val lp = FrameLayout.LayoutParams(widgetWidth, widgetHeight).apply {
                                 leftMargin = slot.col * cellW
-                                topMargin = recycler.paddingTop + slot.row * cellH
+                                topMargin = paddingTop + slot.row * cellH
                             }
                             widgetContainer.addView(hostView, lp)
 
@@ -517,6 +522,7 @@ class HomeActivity : AppCompatActivity() {
                             }
 
                             hostView.onLongPress = {
+                                dragController.onWidgetLongPress(slot, info, hostView)
                                 showWidgetMenu(slot, info, cellW, cellH, recycler)
                             }
                             hostView.onIgnoreIntercepted = {
@@ -975,6 +981,26 @@ class HomeActivity : AppCompatActivity() {
 
     fun onDragFromDrawerEnded() {
         if (!drawerOpen) drawerOverlay.alpha = 1f
+    }
+
+    fun getCurrentCols(): Int = currentCols
+
+    fun getCurrentRows(): Int = currentRows
+
+    fun moveWidget(widgetId: Int, row: Int, col: Int, pageIndex: Int) {
+        lifecycleScope.launch {
+            try {
+                val widgets = Prefs.widgetSlotsFlow(this@HomeActivity).first().toMutableList()
+                val index = widgets.indexOfFirst { it.appWidgetId == widgetId }
+                if (index == -1) return@launch
+                val slot = widgets[index]
+                widgets[index] = slot.copy(row = row, col = col, page = pageIndex)
+                Prefs.setWidgetSlots(this@HomeActivity, widgets)
+                renderWidgets()
+            } catch (e: Exception) {
+                android.util.Log.e("WIDGET_DEBUG", "Errore moveWidget", e)
+            }
+        }
     }
 
     private fun recalculateCellHeight() {
