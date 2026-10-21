@@ -968,6 +968,11 @@ class HomeActivity : AppCompatActivity() {
         currentAnchor = null
     }
 
+    fun dismissWidgetPopup() {
+        widgetPopupWindow?.dismiss()
+        widgetPopupWindow = null
+    }
+
     fun onDragFromDrawerStarted() {
         drawerOverlay.visibility = View.GONE
         drawerOverlay.alpha = 1f
@@ -994,9 +999,39 @@ class HomeActivity : AppCompatActivity() {
                 val index = widgets.indexOfFirst { it.appWidgetId == widgetId }
                 if (index == -1) return@launch
                 val slot = widgets[index]
-                widgets[index] = slot.copy(row = row, col = col, page = pageIndex)
-                Prefs.setWidgetSlots(this@HomeActivity, widgets)
-                renderWidgets()
+
+                val newRow = (row - (slot.heightCells - 1) / 2).coerceIn(0, currentRows - slot.heightCells)
+                val newCol = (col - (slot.widthCells - 1) / 2).coerceIn(0, currentCols - slot.widthCells)
+
+                val occupiedCells = mutableSetOf<Pair<Int, Int>>()
+                val slots = Prefs.homeSlotsFlow(this@HomeActivity).first()
+                slots.filter { it.page == pageIndex }.forEach { occupiedCells.add(it.row to it.col) }
+                widgets.filter { it.page == pageIndex && it.appWidgetId != widgetId }.forEach { w ->
+                    for (r in w.row until w.row + w.heightCells) {
+                        for (c in w.col until w.col + w.widthCells) {
+                            occupiedCells.add(r to c)
+                        }
+                    }
+                }
+
+                var canMove = true
+                for (r in newRow until newRow + slot.heightCells) {
+                    for (c in newCol until newCol + slot.widthCells) {
+                        if (occupiedCells.contains(r to c)) {
+                            canMove = false
+                            break
+                        }
+                    }
+                    if (!canMove) break
+                }
+
+                if (canMove) {
+                    widgets[index] = slot.copy(row = newRow, col = newCol, page = pageIndex)
+                    Prefs.setWidgetSlots(this@HomeActivity, widgets)
+                    renderWidgets()
+                } else {
+                    Toast.makeText(this@HomeActivity, "Spazio occupato", Toast.LENGTH_SHORT).show()
+                }
             } catch (e: Exception) {
                 android.util.Log.e("WIDGET_DEBUG", "Errore moveWidget", e)
             }
