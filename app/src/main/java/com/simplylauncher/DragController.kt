@@ -197,19 +197,21 @@ class DragController(
     }
 
     fun handleWidgetDragEvent(event: DragEvent, pageIndex: Int, cellW: Int, cellH: Int, paddingTop: Int): Boolean {
+        val source = event.clipDescription.label?.toString() ?: ""
+        if (source != SOURCE_WIDGET) {
+            return false
+        }
+
         when (event.action) {
             DragEvent.ACTION_DRAG_STARTED ->
                 return event.clipDescription.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN)
 
             DragEvent.ACTION_DROP -> {
-                val source = event.clipData.description.label?.toString() ?: ""
-                if (source == SOURCE_WIDGET) {
-                    val widgetId = event.clipData.getItemAt(0).text.toString().toIntOrNull()
-                    if (widgetId != null) {
-                        val col = (event.x / cellW).toInt().coerceIn(0, activity.getCurrentCols() - 1)
-                        val row = ((event.y - paddingTop) / cellH).toInt().coerceIn(0, activity.getCurrentRows() - 1)
-                        activity.moveWidget(widgetId, row, col, pageIndex)
-                    }
+                val widgetId = event.clipData.getItemAt(0).text.toString().toIntOrNull()
+                if (widgetId != null) {
+                    val col = (event.x / cellW).toInt().coerceIn(0, activity.getCurrentCols() - 1)
+                    val row = ((event.y - paddingTop) / cellH).toInt().coerceIn(0, activity.getCurrentRows() - 1)
+                    activity.moveWidget(widgetId, row, col, pageIndex)
                 }
                 return true
             }
