@@ -178,33 +178,35 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun setupResizeFrame() {
-        resizeFrame.onResizeEnd = { left, top, right, bottom ->
-            resizingWidgetSlot?.let { slot ->
-                lifecycleScope.launch {
-                    val widgets = Prefs.widgetSlotsFlow(this@HomeActivity).first().toMutableList()
-                    val index = widgets.indexOfFirst { it.appWidgetId == slot.appWidgetId }
-                    if (index != -1) {
-                        widgets[index] = slot.copy(
-                            row = top,
-                            col = left,
-                            widthCells = right - left + 1,
-                            heightCells = bottom - top + 1
-                        )
-                        Prefs.setWidgetSlots(this@HomeActivity, widgets)
-                    }
-                    resizingWidgetSlot = null
-                    resizeOverlay.visibility = View.GONE
-                    resizeFrame.visibility = View.GONE
-                    renderWidgets()
+    resizeFrame.onResizeEnd = { left, top, right, bottom ->
+        resizingWidgetSlot?.let { slot ->
+            lifecycleScope.launch {
+                val widgets = Prefs.widgetSlotsFlow(this@HomeActivity).first().toMutableList()
+                val index = widgets.indexOfFirst { it.appWidgetId == slot.appWidgetId }
+                if (index != -1) {
+                    widgets[index] = slot.copy(
+                        row = top,
+                        col = left,
+                        widthCells = right - left + 1,
+                        heightCells = bottom - top + 1
+                    )
+                    Prefs.setWidgetSlots(this@HomeActivity, widgets)
                 }
+                resizingWidgetSlot = null
+                resizeOverlay.visibility = View.GONE
+                resizeFrame.visibility = View.GONE
+                homeViewPager.requestDisallowInterceptTouchEvent(false)
+                renderWidgets()
             }
         }
-        resizeFrame.onResizeCancel = {
-            resizingWidgetSlot = null
-            resizeOverlay.visibility = View.GONE
-            resizeFrame.visibility = View.GONE
-        }
     }
+    resizeFrame.onResizeCancel = {
+        resizingWidgetSlot = null
+        resizeOverlay.visibility = View.GONE
+        resizeFrame.visibility = View.GONE
+        homeViewPager.requestDisallowInterceptTouchEvent(false)
+    }
+}
 
     override fun onStart() {
         super.onStart()
@@ -612,54 +614,55 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun startResize(
-        slot: WidgetSlot,
-        info: AppWidgetProviderInfo,
-        cellW: Int,
-        cellH: Int,
-        recycler: RecyclerView
-    ) {
-        resizingWidgetSlot = slot
+    slot: WidgetSlot,
+    info: AppWidgetProviderInfo,
+    cellW: Int,
+    cellH: Int,
+    recycler: RecyclerView
+) {
+    resizingWidgetSlot = slot
 
-        val recyclerLoc = IntArray(2)
-        recycler.getLocationOnScreen(recyclerLoc)
-        val overlayLoc = IntArray(2)
-        resizeOverlay.getLocationOnScreen(overlayLoc)
-        val offsetX = recyclerLoc[0] - overlayLoc[0]
-        val offsetY = recyclerLoc[1] - overlayLoc[1]
-        val paddingTop = recycler.paddingTop
+    val recyclerLoc = IntArray(2)
+    recycler.getLocationOnScreen(recyclerLoc)
+    val overlayLoc = IntArray(2)
+    resizeOverlay.getLocationOnScreen(overlayLoc)
+    val offsetX = recyclerLoc[0] - overlayLoc[0]
+    val offsetY = recyclerLoc[1] - overlayLoc[1]
+    val paddingTop = recycler.paddingTop
 
-        val frameLeftAbs = offsetX + slot.col * cellW
-        val frameTopAbs = offsetY + paddingTop + slot.row * cellH
-        val frameRightAbs = frameLeftAbs + slot.widthCells * cellW
-        val frameBottomAbs = frameTopAbs + slot.heightCells * cellH
+    val frameLeftAbs = offsetX + slot.col * cellW
+    val frameTopAbs = offsetY + paddingTop + slot.row * cellH
+    val frameRightAbs = frameLeftAbs + slot.widthCells * cellW
+    val frameBottomAbs = frameTopAbs + slot.heightCells * cellH
 
-        val minCellsW = (info.minResizeWidth / cellW).coerceAtLeast(1).coerceAtMost(currentCols)
-        val minCellsH = (info.minResizeHeight / cellH).coerceAtLeast(1).coerceAtMost(currentRows)
+    val minCellsW = (info.minResizeWidth / cellW).coerceAtLeast(1).coerceAtMost(currentCols)
+    val minCellsH = (info.minResizeHeight / cellH).coerceAtLeast(1).coerceAtMost(currentRows)
 
-        resizeFrame.configure(
-            frameLeft = frameLeftAbs,
-            frameTop = frameTopAbs,
-            frameRight = frameRightAbs,
-            frameBottom = frameBottomAbs,
-            cellLeft = slot.col,
-            cellTop = slot.row,
-            cellRight = slot.col + slot.widthCells - 1,
-            cellBottom = slot.row + slot.heightCells - 1,
-            cellWidthPx = cellW,
-            cellHeightPx = cellH,
-            minCellsWidth = minCellsW,
-            minCellsHeight = minCellsH,
-            maxCellsWidth = currentCols,
-            maxCellsHeight = currentRows,
-            gridOffsetX = offsetX,
-            gridOffsetY = offsetY + paddingTop
-        )
+    resizeFrame.configure(
+        frameLeft = frameLeftAbs,
+        frameTop = frameTopAbs,
+        frameRight = frameRightAbs,
+        frameBottom = frameBottomAbs,
+        cellLeft = slot.col,
+        cellTop = slot.row,
+        cellRight = slot.col + slot.widthCells - 1,
+        cellBottom = slot.row + slot.heightCells - 1,
+        cellWidthPx = cellW,
+        cellHeightPx = cellH,
+        minCellsWidth = minCellsW,
+        minCellsHeight = minCellsH,
+        maxCellsWidth = currentCols,
+        maxCellsHeight = currentRows,
+        gridOffsetX = offsetX,
+        gridOffsetY = offsetY + paddingTop
+    )
 
-        resizeOverlay.visibility = View.VISIBLE
-        resizeOverlay.bringToFront()
-        resizeOverlay.elevation = 20f * resources.displayMetrics.density
-        resizeFrame.visibility = View.VISIBLE
-    }
+    resizeOverlay.visibility = View.VISIBLE
+    resizeOverlay.bringToFront()
+    resizeOverlay.elevation = 20f * resources.displayMetrics.density
+    resizeFrame.visibility = View.VISIBLE
+    homeViewPager.requestDisallowInterceptTouchEvent(true)
+}
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
     if (::dragController.isInitialized && dragController.onInterceptTouch(ev)) return true
