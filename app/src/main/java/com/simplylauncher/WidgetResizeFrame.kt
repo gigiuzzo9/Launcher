@@ -166,12 +166,12 @@ class WidgetResizeFrame @JvmOverloads constructor(
     }
 
     private fun detectHandle(x: Float, y: Float): Int {
-        val inset = handleRadiusPx * 2
+        val innerRadius = handleTouchRadiusPx * 2
 
-        if (abs(x - (frameLeft + inset)) < handleTouchRadiusPx) return HANDLE_LEFT
-        if (abs(x - (frameRight - inset)) < handleTouchRadiusPx) return HANDLE_RIGHT
-        if (abs(y - (frameTop + inset)) < handleTouchRadiusPx) return HANDLE_TOP
-        if (abs(y - (frameBottom - inset)) < handleTouchRadiusPx) return HANDLE_BOTTOM
+        if (x >= frameLeft - handleTouchRadiusPx && x <= frameLeft + innerRadius) return HANDLE_LEFT
+        if (x >= frameRight - innerRadius && x <= frameRight + handleTouchRadiusPx) return HANDLE_RIGHT
+        if (y >= frameTop - handleTouchRadiusPx && y <= frameTop + innerRadius) return HANDLE_TOP
+        if (y >= frameBottom - innerRadius && y <= frameBottom + handleTouchRadiusPx) return HANDLE_BOTTOM
 
         return HANDLE_NONE
     }
@@ -179,22 +179,20 @@ class WidgetResizeFrame @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
-        val inset = handleRadiusPx * 2
-
         canvas.drawRect(
-            frameLeft.toFloat() + inset,
-            frameTop.toFloat() + inset,
-            frameRight.toFloat() - inset,
-            frameBottom.toFloat() - inset,
+            frameLeft.toFloat() + handleRadiusPx,
+            frameTop.toFloat() + handleRadiusPx,
+            frameRight.toFloat() - handleRadiusPx,
+            frameBottom.toFloat() - handleRadiusPx,
             borderPaint
         )
 
         val cx = (frameLeft + frameRight) / 2f
         val cy = (frameTop + frameBottom) / 2f
 
-        canvas.drawCircle(frameLeft.toFloat() + inset, cy, handleRadiusPx, handlePaint)
-        canvas.drawCircle(frameRight.toFloat() - inset, cy, handleRadiusPx, handlePaint)
-        canvas.drawCircle(cx, frameTop.toFloat() + inset, handleRadiusPx, handlePaint)
-        canvas.drawCircle(cx, frameBottom.toFloat() - inset, handleRadiusPx, handlePaint)
+        canvas.drawCircle(frameLeft.toFloat(), cy, handleRadiusPx, handlePaint)
+        canvas.drawCircle(frameRight.toFloat(), cy, handleRadiusPx, handlePaint)
+        canvas.drawCircle(cx, frameTop.toFloat(), handleRadiusPx, handlePaint)
+        canvas.drawCircle(cx, frameBottom.toFloat(), handleRadiusPx, handlePaint)
     }
 }
