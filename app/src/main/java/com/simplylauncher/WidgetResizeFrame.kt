@@ -25,8 +25,8 @@ class WidgetResizeFrame @JvmOverloads constructor(
         style = Paint.Style.STROKE
     }
 
-    private val handleRadiusPx = 8f * resources.displayMetrics.density
-    private val handleTouchRadiusPx = 40f * resources.displayMetrics.density
+    private val handleRadiusPx = 12f * resources.displayMetrics.density
+    private val handleTouchRadiusPx = 60f * resources.displayMetrics.density
 
     private var frameLeft = 0
     private var frameTop = 0
@@ -104,7 +104,7 @@ class WidgetResizeFrame @JvmOverloads constructor(
                 activeHandle = detectHandle(event.x, event.y)
                 if (activeHandle == HANDLE_NONE) {
                     onResizeCancel?.invoke()
-                    return false
+                    return true
                 }
                 startTouchX = event.x
                 startTouchY = event.y
@@ -115,7 +115,7 @@ class WidgetResizeFrame @JvmOverloads constructor(
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
-                if (activeHandle == HANDLE_NONE) return false
+                if (activeHandle == HANDLE_NONE) return true
                 val dxCells = ((event.x - startTouchX) / cellWidthPx).toInt()
                 val dyCells = ((event.y - startTouchY) / cellHeightPx).toInt()
 
@@ -166,7 +166,7 @@ class WidgetResizeFrame @JvmOverloads constructor(
     }
 
     private fun detectHandle(x: Float, y: Float): Int {
-        val innerRadius = handleTouchRadiusPx * 2
+        val innerRadius = handleTouchRadiusPx * 4
 
         if (x >= frameLeft - handleTouchRadiusPx && x <= frameLeft + innerRadius) return HANDLE_LEFT
         if (x >= frameRight - innerRadius && x <= frameRight + handleTouchRadiusPx) return HANDLE_RIGHT
