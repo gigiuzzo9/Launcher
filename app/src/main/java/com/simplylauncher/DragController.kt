@@ -113,10 +113,11 @@ class DragController(
         return false
     }
 
+    @Suppress("DEPRECATION")
     private fun startDrag(app: AppInfo, anchor: View, source: String) {
         val clip = ClipData.newPlainText(source, app.packageName)
         val shadow = View.DragShadowBuilder(anchor)
-        val started = anchor.startDragAndDrop(clip, shadow, null, 0)
+        val started = anchor.startDrag(clip, shadow, null, 0)
 
         if (!started) {
             Toast.makeText(activity, "Drag non supportato", Toast.LENGTH_SHORT).show()
@@ -133,10 +134,11 @@ class DragController(
         clearPending()
     }
 
+    @Suppress("DEPRECATION")
     private fun startWidgetDrag(slot: WidgetSlot, info: AppWidgetProviderInfo, anchor: View) {
         val clip = ClipData.newPlainText(SOURCE_WIDGET, slot.appWidgetId.toString())
         val shadow = View.DragShadowBuilder(anchor)
-        val started = anchor.startDragAndDrop(clip, shadow, null, 0)
+        val started = anchor.startDrag(clip, shadow, null, 0)
 
         if (!started) {
             Toast.makeText(activity, "Drag non supportato", Toast.LENGTH_SHORT).show()
