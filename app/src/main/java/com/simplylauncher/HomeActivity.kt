@@ -42,6 +42,8 @@ class HomeActivity : AppCompatActivity() {
     private lateinit var dockDrawerButton: FrameLayout
     private lateinit var dockLayout: View
     private lateinit var dockSlots: List<FrameLayout>
+    private lateinit var resizeOverlay: FrameLayout
+    private lateinit var resizeFrame: WidgetResizeFrame
 
     private lateinit var homePagerAdapter: HomePagerAdapter
 
@@ -72,34 +74,19 @@ class HomeActivity : AppCompatActivity() {
     private var pendingWidgetHeightCells = 1
 
     private var resizingWidgetSlot: WidgetSlot? = null
-    private var resizingWidgetId = -1
-    private var resizeStartX = 0f
-    private var resizeStartY = 0f
-    private var resizeStartWidthCells = 0
-    private var resizeStartHeightCells = 0
-    private var resizeStartRow = 0
-    private var resizeStartCol = 0
-    private var resizeHandle = 0
-    private var isResizing = false
+    private var resizingWidgetView: LauncherAppWidgetHostView? = null
     private var widgetPopupWindow: android.widget.PopupWindow? = null
 
     private var currentCols = 4
     private var currentRows = 6
     private var currentPageCount = 1
     private var isDropInProgress = false
+    private var isResizing = false
     private var currentDrawerColor: Int = Color.BLACK
 
     private val REQUEST_PICK_WIDGET = 100
     private val REQUEST_BIND_WIDGET = 101
     private val REQUEST_CONFIGURE_WIDGET = 102
-
-    private companion object {
-        const val HANDLE_NONE = 0
-        const val HANDLE_LEFT = 1
-        const val HANDLE_TOP = 2
-        const val HANDLE_RIGHT = 3
-        const val HANDLE_BOTTOM = 4
-    }
 
     private val reloadReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -121,6 +108,8 @@ class HomeActivity : AppCompatActivity() {
         emptyMessage = findViewById(R.id.emptyMessage)
         dockDrawerButton = findViewById(R.id.dockDrawerButton)
         dockLayout = findViewById(R.id.dockLayout)
+        resizeOverlay = findViewById(R.id.resizeOverlay)
+        resizeFrame = findViewById(R.id.resizeFrame)
 
         dockSlots = listOf(
             findViewById(R.id.dockSlot1),
@@ -144,6 +133,7 @@ class HomeActivity : AppCompatActivity() {
             }
         }
 
+        setupResizeFrame()
         setupHomePager()
         setupDragController()
         setupDockController()
@@ -187,6 +177,21 @@ class HomeActivity : AppCompatActivity() {
         homeViewPager.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             recalculateCellHeight()
         }
+    }
+
+    private fun setupResizeFrame() {
+        resizeFrame.onClickListener = {
+            endResizeMode()
+        }
+    }
+
+    private fun endResizeMode() {
+        resizingWidgetSlot = null
+        resizingWidgetView = null
+        isResizing = false
+        resizeOverlay.visibility = View.GONE
+        resizeFrame.visibility = View.GONE
+        homeViewPager.requestDisallowInterceptTouchEvent(false)
     }
 
     override fun onStart() {
@@ -506,18 +511,10 @@ class HomeActivity : AppCompatActivity() {
 
                             hostView.onLongPress = {
                                 dragController.onWidgetLongPress(slot, info, hostView)
-                                showWidgetMenu(slot, info, cellW, cellH, recycler)
+                                showWidgetMenu(slot, info, cellW, cellH, recycler, hostView, pageIndex)
                             }
                             hostView.onIgnoreIntercepted = {
                                 widgetPopupWindow?.dismiss()
-                            }
-
-                            if (isResizing && slot.appWidgetId == resizingWidgetId) {
-                                hostView.setOnTouchListener { _, event ->
-                                    handleResizeTouch(event, slot, cellW, cellH, recycler, hostView)
-                                }
-                            } else {
-                                hostView.setOnTouchListener(null)
                             }
                         } catch (e: Exception) {
                             android.util.Log.e("WIDGET_DEBUG", "Errore render widget ${slot.appWidgetId}", e)
@@ -530,127 +527,111 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    private fun startResizeMode(
+    private fun startResize(
         slot: WidgetSlot,
         info: AppWidgetProviderInfo,
         cellW: Int,
         cellH: Int,
-        recycler: RecyclerView
+        recycler: RecyclerView,
+        hostView: LauncherAppWidgetHostView,
+        pageIndex: Int
     ) {
         resizingWidgetSlot = slot
-        resizingWidgetId = slot.appWidgetId
+        resizingWidgetView = hostView
         isResizing = true
-        resizeStartWidthCells = slot.widthCells
-        resizeStartHeightCells = slot.heightCells
-        resizeStartRow = slot.row
-        resizeStartCol = slot.col
 
-        renderWidgets()
+        val containerLoc = IntArray(2)
+        val recyclerLoc = IntArray(2)
+        recycler.getLocationOnScreen(recyclerLoc)
+        val overlayLoc = IntArray(2)
+        resizeOverlay.getLocationOnScreen(overlayLoc)
+        val paddingTop = recycler.paddingTop
+
+        val cellW2 = cellW
+        val cellH2 = cellH
+
+        val widgetContainer = homePagerAdapter.getWidgetContainer(pageIndex)
+        widgetContainer?.getLocationOnScreen(containerLoc)
+        val containerScreenX = if (widgetContainer != null) containerLoc[0] else recyclerLoc[0]
+        val containerScreenY = if (widgetContainer != null) containerLoc[1] else recyclerLoc[1]
+
+        val offsetX = containerScreenX - overlayLoc[0]
+        val offsetY = containerScreenY - overlayLoc[1]
+
+        val frameLeftAbs = offsetX + slot.col * cellW2
+        val frameTopAbs = offsetY + paddingTop + slot.row * cellH2
+        val frameRightAbs = frameLeftAbs + slot.widthCells * cellW2
+        val frameBottomAbs = frameTopAbs + slot.heightCells * cellH2
+
+        val sideMargins = Rect(offsetX, offsetY + paddingTop, 0, 0)
+
+        lifecycleScope.launch {
+            val allWidgets = Prefs.widgetSlotsFlow(this@HomeActivity).first()
+            val allSlots = allWidgets.filter { it.page == pageIndex }.toMutableList() as ArrayList<WidgetSlot>
+
+            resizeFrame.updateFrameCoords(
+                coords = Rect(frameLeftAbs, frameTopAbs, frameRightAbs, frameBottomAbs),
+                cellWidth = cellW2,
+                cellHeight = cellH2,
+                sideMargins = sideMargins,
+                slot = slot,
+                allSlots = allSlots
+            )
+
+            resizeFrame.onResizeListener = { cellsRect ->
+                val newSlot = slot.copy(
+                    row = cellsRect.top,
+                    col = cellsRect.left,
+                    widthCells = cellsRect.right - cellsRect.left + 1,
+                    heightCells = cellsRect.bottom - cellsRect.top + 1
+                )
+                resizingWidgetSlot = newSlot
+                updateWidgetPositionAndSize(hostView, newSlot, cellW2, cellH2, paddingTop)
+            }
+
+            resizeOverlay.visibility = View.VISIBLE
+            resizeOverlay.bringToFront()
+            resizeOverlay.elevation = 20f * resources.displayMetrics.density
+            resizeFrame.visibility = View.VISIBLE
+            homeViewPager.requestDisallowInterceptTouchEvent(true)
+        }
     }
 
-    private fun endResizeMode() {
-        resizingWidgetSlot = null
-        resizingWidgetId = -1
-        isResizing = false
-        resizeHandle = HANDLE_NONE
-
-        renderWidgets()
-    }
-
-    private fun handleResizeTouch(
-        event: MotionEvent,
+    private fun updateWidgetPositionAndSize(
+        hostView: LauncherAppWidgetHostView,
         slot: WidgetSlot,
         cellW: Int,
         cellH: Int,
-        recycler: RecyclerView,
-        hostView: LauncherAppWidgetHostView
-    ): Boolean {
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                resizeStartX = event.rawX
-                resizeStartY = event.rawY
-                resizeStartWidthCells = slot.widthCells
-                resizeStartHeightCells = slot.heightCells
-                resizeStartRow = slot.row
-                resizeStartCol = slot.col
+        paddingTop: Int
+    ) {
+        val lp = hostView.layoutParams as FrameLayout.LayoutParams
+        lp.width = cellW * slot.widthCells
+        lp.height = cellH * slot.heightCells
+        lp.leftMargin = slot.col * cellW
+        lp.topMargin = paddingTop + slot.row * cellH
+        hostView.layoutParams = lp
 
-                val localX = event.x
-                val localY = event.y
-                val threshold = 60 * resources.displayMetrics.density
-                val w = hostView.width
-                val h = hostView.height
-
-                resizeHandle = when {
-                    localX < threshold -> HANDLE_LEFT
-                    localX > w - threshold -> HANDLE_RIGHT
-                    localY < threshold -> HANDLE_TOP
-                    localY > h - threshold -> HANDLE_BOTTOM
-                    else -> HANDLE_NONE
+        hostView.post {
+            try {
+                val density = resources.displayMetrics.density
+                val wDp = (lp.width / density).toInt()
+                val hDp = (lp.height / density).toInt()
+                if (android.os.Build.VERSION.SDK_INT >= 31) {
+                    hostView.updateAppWidgetSize(
+                        Bundle(),
+                        listOf(SizeF(wDp.toFloat(), hDp.toFloat()))
+                    )
+                } else {
+                    hostView.updateAppWidgetSize(
+                        Bundle(),
+                        wDp,
+                        hDp,
+                        wDp,
+                        hDp
+                    )
                 }
-                return true
-            }
-            MotionEvent.ACTION_MOVE -> {
-                if (resizeHandle == HANDLE_NONE) return true
-                val dxCells = ((event.rawX - resizeStartX) / cellW).toInt()
-                val dyCells = ((event.rawY - resizeStartY) / cellH).toInt()
-
-                var newWidth = resizeStartWidthCells
-                var newHeight = resizeStartHeightCells
-                var newRow = resizeStartRow
-                var newCol = resizeStartCol
-
-                when (resizeHandle) {
-                    HANDLE_LEFT -> {
-                        newCol = (resizeStartCol + dxCells).coerceIn(0, resizeStartCol + resizeStartWidthCells - 1)
-                        newWidth = resizeStartWidthCells + (resizeStartCol - newCol)
-                    }
-                    HANDLE_RIGHT -> {
-                        newWidth = (resizeStartWidthCells + dxCells).coerceIn(1, currentCols - resizeStartCol)
-                    }
-                    HANDLE_TOP -> {
-                        newRow = (resizeStartRow + dyCells).coerceIn(0, resizeStartRow + resizeStartHeightCells - 1)
-                        newHeight = resizeStartHeightCells + (resizeStartRow - newRow)
-                    }
-                    HANDLE_BOTTOM -> {
-                        newHeight = (resizeStartHeightCells + dyCells).coerceIn(1, currentRows - resizeStartRow)
-                    }
-                }
-
-                val newLp = hostView.layoutParams as FrameLayout.LayoutParams
-                newLp.width = cellW * newWidth
-                newLp.height = cellH * newHeight
-                newLp.leftMargin = newCol * cellW
-                newLp.topMargin = recycler.paddingTop + newRow * cellH
-                hostView.layoutParams = newLp
-                return true
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (resizeHandle != HANDLE_NONE) {
-                    val lp = hostView.layoutParams as FrameLayout.LayoutParams
-                    val finalWidth = (lp.width / cellW).coerceAtLeast(1)
-                    val finalHeight = (lp.height / cellH).coerceAtLeast(1)
-                    val finalCol = (lp.leftMargin / cellW).coerceAtLeast(0)
-                    val finalRow = ((lp.topMargin - recycler.paddingTop) / cellH).coerceAtLeast(0)
-
-                    lifecycleScope.launch {
-                        val widgets = Prefs.widgetSlotsFlow(this@HomeActivity).first().toMutableList()
-                        val index = widgets.indexOfFirst { it.appWidgetId == slot.appWidgetId }
-                        if (index != -1) {
-                            widgets[index] = slot.copy(
-                                row = finalRow,
-                                col = finalCol,
-                                widthCells = finalWidth,
-                                heightCells = finalHeight
-                            )
-                            Prefs.setWidgetSlots(this@HomeActivity, widgets)
-                        }
-                    }
-                }
-                endResizeMode()
-                return true
-            }
+            } catch (_: Exception) {}
         }
-        return false
     }
 
     private fun showWidgetMenu(
@@ -658,7 +639,9 @@ class HomeActivity : AppCompatActivity() {
         info: AppWidgetProviderInfo,
         cellW: Int,
         cellH: Int,
-        recycler: RecyclerView
+        recycler: RecyclerView,
+        hostView: LauncherAppWidgetHostView,
+        pageIndex: Int
     ) {
         val ctx = this
         val density = resources.displayMetrics.density
@@ -694,7 +677,7 @@ class HomeActivity : AppCompatActivity() {
 
         addItem("Ridimensiona") {
             dragController.cancelPendingDrag()
-            startResizeMode(slot, info, cellW, cellH, recycler)
+            startResize(slot, info, cellW, cellH, recycler, hostView, pageIndex)
         }
         addItem("Rimuovi widget") {
             lifecycleScope.launch {
@@ -727,26 +710,26 @@ class HomeActivity : AppCompatActivity() {
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-    if (::dragController.isInitialized && !isResizing && dragController.onInterceptTouch(ev)) return true
-    if (::contextMenuView.isInitialized && contextMenuView.isShowing()) {
-        if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
-            if (!contextMenuView.isPointInside(ev.rawX, ev.rawY)) {
-                contextMenuView.dismiss()
-                currentApp = null
-                currentAnchor = null
+        if (::dragController.isInitialized && !isResizing && dragController.onInterceptTouch(ev)) return true
+        if (::contextMenuView.isInitialized && contextMenuView.isShowing()) {
+            if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+                if (!contextMenuView.isPointInside(ev.rawX, ev.rawY)) {
+                    contextMenuView.dismiss()
+                    currentApp = null
+                    currentAnchor = null
+                }
             }
         }
-    }
-    if (isResizing) {
-        val currentPage = homeViewPager.currentItem
-        val widgetContainer = homePagerAdapter.getWidgetContainer(currentPage)
-        if (widgetContainer != null && widgetContainer.visibility == View.VISIBLE) {
-            widgetContainer.dispatchTouchEvent(ev)
-            return true
+        if (isResizing) {
+            val currentPage = homeViewPager.currentItem
+            val widgetContainer = homePagerAdapter.getWidgetContainer(currentPage)
+            if (widgetContainer != null && widgetContainer.visibility == View.VISIBLE) {
+                widgetContainer.dispatchTouchEvent(ev)
+                return true
+            }
         }
+        return super.dispatchTouchEvent(ev)
     }
-    return super.dispatchTouchEvent(ev)
-}
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
@@ -1335,6 +1318,8 @@ class HomeActivity : AppCompatActivity() {
         pageIndicator.visibility = View.INVISIBLE
         dockLayout.visibility = View.INVISIBLE
         emptyMessage.visibility = View.INVISIBLE
+        resizeOverlay.visibility = View.GONE
+        resizeFrame.visibility = View.GONE
         applyDrawerBackground()
         drawerOverlay.alpha = 1f
         drawerOverlay.visibility = View.VISIBLE
