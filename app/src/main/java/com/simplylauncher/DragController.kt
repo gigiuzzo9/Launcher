@@ -92,6 +92,7 @@ class DragController(
                     val widgetInfo = pendingWidgetInfo
                     val app = pendingApp
                     if (widget != null && widgetInfo != null) {
+                        activity.dismissWidgetPopup()
                         startWidgetDrag(widget, widgetInfo, anchor)
                     } else if (app != null) {
                         startDrag(app, anchor, source)
