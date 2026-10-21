@@ -91,6 +91,24 @@
     </LinearLayout>
 
     <FrameLayout
+        android:id="@+id/resizeOverlay"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <com.simplylauncher.WidgetResizeFrame
+            android:id="@+id/resizeFrame"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone" />
+
+    </FrameLayout>
+
+    <FrameLayout
         android:id="@+id/drawerOverlay"
         android:layout_width="0dp"
         android:layout_height="0dp"
