@@ -710,26 +710,18 @@ class HomeActivity : AppCompatActivity() {
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (::dragController.isInitialized && !isResizing && dragController.onInterceptTouch(ev)) return true
-        if (::contextMenuView.isInitialized && contextMenuView.isShowing()) {
-            if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
-                if (!contextMenuView.isPointInside(ev.rawX, ev.rawY)) {
-                    contextMenuView.dismiss()
-                    currentApp = null
-                    currentAnchor = null
-                }
+    if (::dragController.isInitialized && !isResizing && dragController.onInterceptTouch(ev)) return true
+    if (::contextMenuView.isInitialized && contextMenuView.isShowing()) {
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
+            if (!contextMenuView.isPointInside(ev.rawX, ev.rawY)) {
+                contextMenuView.dismiss()
+                currentApp = null
+                currentAnchor = null
             }
         }
-        if (isResizing) {
-            val currentPage = homeViewPager.currentItem
-            val widgetContainer = homePagerAdapter.getWidgetContainer(currentPage)
-            if (widgetContainer != null && widgetContainer.visibility == View.VISIBLE) {
-                widgetContainer.dispatchTouchEvent(ev)
-                return true
-            }
-        }
-        return super.dispatchTouchEvent(ev)
     }
+    return super.dispatchTouchEvent(ev)
+}
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
