@@ -64,6 +64,10 @@ class DragController(
         pendingStartRawY = -1f
     }
 
+    fun cancelPendingDrag() {
+        clearPending()
+    }
+
     fun onInterceptTouch(event: MotionEvent): Boolean {
         val anchor = pendingAnchor ?: return false
         val source = pendingSource ?: return false
