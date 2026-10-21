@@ -43,6 +43,8 @@ class WidgetResizeFrame(context: Context, attrs: AttributeSet, defStyle: Int) : 
     private var dragDirection = DRAGGING_NONE
 
     init {
+        isClickable = true
+        isFocusable = true
         background = ColorDrawable(Color.TRANSPARENT)
 
         resizeWidgetLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
