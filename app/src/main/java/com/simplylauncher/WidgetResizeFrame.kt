@@ -1,198 +1,298 @@
 package com.simplylauncher
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PointF
+import android.graphics.Rect
+import android.graphics.drawable.ColorDrawable
 import android.util.AttributeSet
 import android.view.MotionEvent
-import android.view.View
-import kotlin.math.abs
+import android.widget.RelativeLayout
+import kotlin.math.roundToInt
 
-class WidgetResizeFrame @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null,
-    defStyleAttr: Int = 0
-) : View(context, attrs, defStyleAttr) {
+@SuppressLint("ViewConstructor")
+class WidgetResizeFrame(context: Context, attrs: AttributeSet, defStyle: Int) : RelativeLayout(context, attrs, defStyle) {
+    constructor(context: Context, attrs: AttributeSet) : this(context, attrs, 0)
 
-    private val handlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
-        style = Paint.Style.FILL
-    }
-    private val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
-        strokeWidth = 2f * resources.displayMetrics.density
-        style = Paint.Style.STROKE
-    }
+    private var resizeWidgetLinePaint: Paint
+    private var resizeWidgetLineDotPaint: Paint
+    private var actionDownCoords = PointF()
+    private var actionDownMS = 0L
+    private var frameRect = Rect(0, 0, 0, 0)
+    private var cellsRect = Rect(0, 0, 0, 0)
+    private var cellWidth = 0
+    private var cellHeight = 0
+    private var minResizeWidthCells = 1
+    private var minResizeHeightCells = 1
+    private val occupiedCells = ArrayList<Pair<Int, Int>>()
+    private var resizedItem: WidgetSlot? = null
+    private var sideMargins = Rect()
+    private val lineDotRadius = 6f * resources.displayMetrics.density
+    private val MAX_TOUCH_LINE_DISTANCE = lineDotRadius * 5
+    var onClickListener: (() -> Unit)? = null
+    var onResizeListener: ((cellsRect: Rect) -> Unit)? = null
 
-    private val handleRadiusPx = 12f * resources.displayMetrics.density
-    private val handleTouchRadiusPx = 60f * resources.displayMetrics.density
-
-    private var frameLeft = 0
-    private var frameTop = 0
-    private var frameRight = 0
-    private var frameBottom = 0
-
-    private var cellLeft = 0
-    private var cellTop = 0
-    private var cellRight = 0
-    private var cellBottom = 0
-
-    private var cellWidthPx = 0
-    private var cellHeightPx = 0
-    private var minCellsWidth = 1
-    private var minCellsHeight = 1
-    private var maxCellsWidth = 4
-    private var maxCellsHeight = 6
-    private var gridOffsetX = 0
-    private var gridOffsetY = 0
-
-    private var activeHandle = HANDLE_NONE
-    private var startTouchX = 0f
-    private var startTouchY = 0f
-    private var startCellLeft = 0
-    private var startCellTop = 0
-    private var startCellRight = 0
-    private var startCellBottom = 0
-
-    var onResizeEnd: ((left: Int, top: Int, right: Int, bottom: Int) -> Unit)? = null
-    var onResizeCancel: (() -> Unit)? = null
-
-    companion object {
-        private const val HANDLE_NONE = 0
-        private const val HANDLE_LEFT = 1
-        private const val HANDLE_TOP = 2
-        private const val HANDLE_RIGHT = 3
-        private const val HANDLE_BOTTOM = 4
-    }
+    private val DRAGGING_NONE = 0
+    private val DRAGGING_LEFT = 1
+    private val DRAGGING_TOP = 2
+    private val DRAGGING_RIGHT = 3
+    private val DRAGGING_BOTTOM = 4
+    private var dragDirection = DRAGGING_NONE
 
     init {
-        isClickable = true
-        isFocusable = true
+        background = ColorDrawable(Color.TRANSPARENT)
+
+        resizeWidgetLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            strokeWidth = 2f * resources.displayMetrics.density
+            style = Paint.Style.STROKE
+        }
+
+        resizeWidgetLineDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+        }
     }
 
-    fun configure(
-        frameLeft: Int, frameTop: Int, frameRight: Int, frameBottom: Int,
-        cellLeft: Int, cellTop: Int, cellRight: Int, cellBottom: Int,
-        cellWidthPx: Int, cellHeightPx: Int,
-        minCellsWidth: Int, minCellsHeight: Int,
-        maxCellsWidth: Int, maxCellsHeight: Int,
-        gridOffsetX: Int, gridOffsetY: Int
+    fun updateFrameCoords(
+        coords: Rect,
+        cellWidth: Int,
+        cellHeight: Int,
+        sideMargins: Rect,
+        slot: WidgetSlot,
+        allSlots: ArrayList<WidgetSlot>
     ) {
-        this.frameLeft = frameLeft
-        this.frameTop = frameTop
-        this.frameRight = frameRight
-        this.frameBottom = frameBottom
-        this.cellLeft = cellLeft
-        this.cellTop = cellTop
-        this.cellRight = cellRight
-        this.cellBottom = cellBottom
-        this.cellWidthPx = cellWidthPx
-        this.cellHeightPx = cellHeightPx
-        this.minCellsWidth = minCellsWidth
-        this.minCellsHeight = minCellsHeight
-        this.maxCellsWidth = maxCellsWidth
-        this.maxCellsHeight = maxCellsHeight
-        this.gridOffsetX = gridOffsetX
-        this.gridOffsetY = gridOffsetY
-        invalidate()
+        frameRect = coords
+        cellsRect = Rect(slot.col, slot.row, slot.col + slot.widthCells - 1, slot.row + slot.heightCells - 1)
+        this.cellWidth = cellWidth
+        this.cellHeight = cellHeight
+        this.sideMargins = sideMargins
+        this.resizedItem = slot
+
+        minResizeWidthCells = 1
+        minResizeHeightCells = 1
+        redrawFrame()
+
+        occupiedCells.clear()
+        allSlots.forEach { item ->
+            for (xCell in item.col until item.col + item.widthCells) {
+                for (yCell in item.row until item.row + item.heightCells) {
+                    if (item.appWidgetId != slot.appWidgetId) {
+                        occupiedCells.add(Pair(xCell, yCell))
+                    }
+                }
+            }
+        }
     }
 
-    override fun onTouchEvent(event: MotionEvent): Boolean {
+    private fun redrawFrame() {
+        layoutParams.width = frameRect.right - frameRect.left
+        layoutParams.height = frameRect.bottom - frameRect.top
+        x = frameRect.left.toFloat()
+        y = frameRect.top.toFloat()
+        requestLayout()
+    }
+
+    private fun cellChanged() {
+        onResizeListener?.invoke(cellsRect)
+    }
+
+    override fun onTouchEvent(event: MotionEvent?): Boolean {
+        if (event == null) return false
+
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                activeHandle = detectHandle(event.x, event.y)
-                if (activeHandle == HANDLE_NONE) {
-                    onResizeCancel?.invoke()
-                    return true
+                actionDownCoords.x = event.rawX
+                actionDownCoords.y = event.rawY
+                actionDownMS = System.currentTimeMillis()
+                dragDirection = DRAGGING_NONE
+                if (event.x < MAX_TOUCH_LINE_DISTANCE) {
+                    dragDirection = DRAGGING_LEFT
+                } else if (event.y < MAX_TOUCH_LINE_DISTANCE) {
+                    dragDirection = DRAGGING_TOP
+                } else if (event.x > width - MAX_TOUCH_LINE_DISTANCE) {
+                    dragDirection = DRAGGING_RIGHT
+                } else if (event.y > height - MAX_TOUCH_LINE_DISTANCE) {
+                    dragDirection = DRAGGING_BOTTOM
                 }
-                startTouchX = event.x
-                startTouchY = event.y
-                startCellLeft = cellLeft
-                startCellTop = cellTop
-                startCellRight = cellRight
-                startCellBottom = cellBottom
                 return true
             }
+
             MotionEvent.ACTION_MOVE -> {
-                if (activeHandle == HANDLE_NONE) return true
-                val dxCells = ((event.x - startTouchX) / cellWidthPx).toInt()
-                val dyCells = ((event.y - startTouchY) / cellHeightPx).toInt()
+                if (dragDirection == DRAGGING_NONE) return true
+                val minWidth = minResizeWidthCells * cellWidth
+                val minHeight = minResizeHeightCells * cellHeight
 
-                when (activeHandle) {
-                    HANDLE_LEFT -> {
-                        cellLeft = (startCellLeft + dxCells).coerceIn(
-                            maxOf(0, startCellRight - maxCellsWidth + 1),
-                            startCellRight - minCellsWidth + 1
-                        )
+                when (dragDirection) {
+                    DRAGGING_LEFT -> {
+                        val newWidth = frameRect.right - event.rawX.roundToInt()
+                        val wantedLeft = if (newWidth >= minWidth) event.rawX.roundToInt() else frameRect.right - minWidth
+                        val wantedLeftCellX = roundToClosestMultiplyOfNumber(wantedLeft - sideMargins.left, cellWidth) / cellWidth
+                        var areAllCellsFree = true
+                        for (xCell in wantedLeftCellX..cellsRect.right) {
+                            for (yCell in cellsRect.top..cellsRect.bottom) {
+                                if (occupiedCells.contains(Pair(xCell, yCell))) { areAllCellsFree = false; break }
+                            }
+                        }
+                        if (areAllCellsFree && cellsRect.left != wantedLeftCellX) {
+                            cellsRect.left = wantedLeftCellX
+                            cellChanged()
+                        }
+                        frameRect.left = wantedLeft
                     }
-                    HANDLE_TOP -> {
-                        cellTop = (startCellTop + dyCells).coerceIn(
-                            maxOf(0, startCellBottom - maxCellsHeight + 1),
-                            startCellBottom - minCellsHeight + 1
-                        )
+                    DRAGGING_TOP -> {
+                        val newHeight = frameRect.bottom - event.rawY.roundToInt()
+                        val wantedTop = if (newHeight >= minHeight) event.rawY.roundToInt() else frameRect.bottom - minHeight
+                        val wantedTopCellY = roundToClosestMultiplyOfNumber(wantedTop - sideMargins.top, cellHeight) / cellHeight
+                        var areAllCellsFree = true
+                        for (xCell in cellsRect.left..cellsRect.right) {
+                            for (yCell in wantedTopCellY..cellsRect.bottom) {
+                                if (occupiedCells.contains(Pair(xCell, yCell))) { areAllCellsFree = false; break }
+                            }
+                        }
+                        if (areAllCellsFree && cellsRect.top != wantedTopCellY) {
+                            cellsRect.top = wantedTopCellY
+                            cellChanged()
+                        }
+                        frameRect.top = wantedTop
                     }
-                    HANDLE_RIGHT -> {
-                        cellRight = (startCellRight + dxCells).coerceIn(
-                            startCellLeft + minCellsWidth - 1,
-                            minOf(startCellLeft + maxCellsWidth - 1, maxCellsWidth - 1)
-                        )
+                    DRAGGING_RIGHT -> {
+                        val newWidth = event.rawX.roundToInt() - frameRect.left
+                        val wantedRight = if (newWidth >= minWidth) event.rawX.roundToInt() else frameRect.left + minWidth
+                        val wantedRightCellX = roundToClosestMultiplyOfNumber(wantedRight - sideMargins.left, cellWidth) / cellWidth - 1
+                        var areAllCellsFree = true
+                        for (xCell in cellsRect.left..wantedRightCellX) {
+                            for (yCell in cellsRect.top..cellsRect.bottom) {
+                                if (occupiedCells.contains(Pair(xCell, yCell))) { areAllCellsFree = false; break }
+                            }
+                        }
+                        if (areAllCellsFree && cellsRect.right != wantedRightCellX) {
+                            cellsRect.right = wantedRightCellX
+                            cellChanged()
+                        }
+                        frameRect.right = wantedRight
                     }
-                    HANDLE_BOTTOM -> {
-                        cellBottom = (startCellBottom + dyCells).coerceIn(
-                            startCellTop + minCellsHeight - 1,
-                            minOf(startCellTop + maxCellsHeight - 1, maxCellsHeight - 1)
-                        )
+                    DRAGGING_BOTTOM -> {
+                        val newHeight = event.rawY.roundToInt() - frameRect.top
+                        val wantedBottom = if (newHeight >= minHeight) event.rawY.roundToInt() else frameRect.top + minHeight
+                        val wantedBottomCellY = roundToClosestMultiplyOfNumber(wantedBottom - sideMargins.top, cellHeight) / cellHeight - 1
+                        var areAllCellsFree = true
+                        for (xCell in cellsRect.left..cellsRect.right) {
+                            for (yCell in cellsRect.top..wantedBottomCellY) {
+                                if (occupiedCells.contains(Pair(xCell, yCell))) { areAllCellsFree = false; break }
+                            }
+                        }
+                        if (areAllCellsFree && cellsRect.bottom != wantedBottomCellY) {
+                            cellsRect.bottom = wantedBottomCellY
+                            cellChanged()
+                        }
+                        frameRect.bottom = wantedBottom
                     }
                 }
 
-                frameLeft = gridOffsetX + cellLeft * cellWidthPx
-                frameTop = gridOffsetY + cellTop * cellHeightPx
-                frameRight = gridOffsetX + (cellRight + 1) * cellWidthPx
-                frameBottom = gridOffsetY + (cellBottom + 1) * cellHeightPx
-                invalidate()
-                postInvalidateOnAnimation()
+                if (dragDirection != DRAGGING_NONE) {
+                    redrawFrame()
+                }
                 return true
             }
+
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (activeHandle != HANDLE_NONE) {
-                    onResizeEnd?.invoke(cellLeft, cellTop, cellRight, cellBottom)
-                    activeHandle = HANDLE_NONE
+                if (dragDirection == DRAGGING_NONE) {
+                    onClickListener?.invoke()
+                } else if (System.currentTimeMillis() - actionDownMS < 150) {
+                    onClickListener?.invoke()
+                    dragDirection = DRAGGING_NONE
+                } else {
+                    when (dragDirection) {
+                        DRAGGING_LEFT -> {
+                            val wantedLeft = roundToClosestMultiplyOfNumber(frameRect.left - sideMargins.left, cellWidth)
+                            val wantedLeftCellX = wantedLeft / cellWidth
+                            var areAllCellsFree = true
+                            for (xCell in wantedLeftCellX..cellsRect.right) {
+                                for (yCell in cellsRect.top..cellsRect.bottom) {
+                                    if (occupiedCells.contains(Pair(xCell, yCell))) { areAllCellsFree = false; break }
+                                }
+                            }
+                            if (areAllCellsFree) {
+                                frameRect.left = wantedLeft + sideMargins.left
+                                cellsRect.left = wantedLeftCellX
+                            } else {
+                                frameRect.left = cellsRect.left * cellWidth + sideMargins.left
+                            }
+                        }
+                        DRAGGING_TOP -> {
+                            val wantedTop = roundToClosestMultiplyOfNumber(frameRect.top - sideMargins.top, cellHeight)
+                            val wantedTopCellY = wantedTop / cellHeight
+                            var areAllCellsFree = true
+                            for (xCell in cellsRect.left..cellsRect.right) {
+                                for (yCell in wantedTopCellY..cellsRect.bottom) {
+                                    if (occupiedCells.contains(Pair(xCell, yCell))) { areAllCellsFree = false; break }
+                                }
+                            }
+                            if (areAllCellsFree) {
+                                frameRect.top = wantedTop + sideMargins.top
+                                cellsRect.top = wantedTopCellY
+                            } else {
+                                frameRect.top = cellsRect.top * cellHeight + sideMargins.top
+                            }
+                        }
+                        DRAGGING_RIGHT -> {
+                            val wantedRight = roundToClosestMultiplyOfNumber(frameRect.right - sideMargins.left, cellWidth)
+                            val wantedRightCellX = wantedRight / cellWidth - 1
+                            var areAllCellsFree = true
+                            for (xCell in cellsRect.left..wantedRightCellX + 1) {
+                                for (yCell in cellsRect.top..cellsRect.bottom) {
+                                    if (occupiedCells.contains(Pair(xCell, yCell))) { areAllCellsFree = false; break }
+                                }
+                            }
+                            if (areAllCellsFree) {
+                                frameRect.right = wantedRight + sideMargins.left
+                                cellsRect.right = wantedRightCellX
+                            } else {
+                                frameRect.right = (cellsRect.right + 1) * cellWidth + sideMargins.left
+                            }
+                        }
+                        DRAGGING_BOTTOM -> {
+                            val wantedBottom = roundToClosestMultiplyOfNumber(frameRect.bottom - sideMargins.top, cellHeight)
+                            val wantedBottomCellY = wantedBottom / cellHeight - 1
+                            var areAllCellsFree = true
+                            for (xCell in cellsRect.left..cellsRect.right) {
+                                for (yCell in cellsRect.top..wantedBottomCellY + 1) {
+                                    if (occupiedCells.contains(Pair(xCell, yCell))) { areAllCellsFree = false; break }
+                                }
+                            }
+                            if (areAllCellsFree) {
+                                frameRect.bottom = wantedBottom + sideMargins.top
+                                cellsRect.bottom = wantedBottomCellY
+                            } else {
+                                frameRect.bottom = (cellsRect.bottom + 1) * cellHeight + sideMargins.top
+                            }
+                        }
+                    }
+                    redrawFrame()
                 }
+                dragDirection = DRAGGING_NONE
                 return true
             }
         }
         return false
     }
 
-    private fun detectHandle(x: Float, y: Float): Int {
-        val innerRadius = handleTouchRadiusPx * 4
-
-        if (x >= frameLeft - handleTouchRadiusPx && x <= frameLeft + innerRadius) return HANDLE_LEFT
-        if (x >= frameRight - innerRadius && x <= frameRight + handleTouchRadiusPx) return HANDLE_RIGHT
-        if (y >= frameTop - handleTouchRadiusPx && y <= frameTop + innerRadius) return HANDLE_TOP
-        if (y >= frameBottom - innerRadius && y <= frameBottom + handleTouchRadiusPx) return HANDLE_BOTTOM
-
-        return HANDLE_NONE
+    private fun roundToClosestMultiplyOfNumber(value: Int, number: Int): Int {
+        return number * (Math.round(Math.abs(value / number.toDouble()))).toInt()
     }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        if (x != 0f || y != 0f) {
+            canvas.drawRect(lineDotRadius, lineDotRadius, width.toFloat() - lineDotRadius, height.toFloat() - lineDotRadius, resizeWidgetLinePaint)
 
-        canvas.drawRect(
-            frameLeft.toFloat() + handleRadiusPx,
-            frameTop.toFloat() + handleRadiusPx,
-            frameRight.toFloat() - handleRadiusPx,
-            frameBottom.toFloat() - handleRadiusPx,
-            borderPaint
-        )
-
-        val cx = (frameLeft + frameRight) / 2f
-        val cy = (frameTop + frameBottom) / 2f
-
-        canvas.drawCircle(frameLeft.toFloat(), cy, handleRadiusPx, handlePaint)
-        canvas.drawCircle(frameRight.toFloat(), cy, handleRadiusPx, handlePaint)
-        canvas.drawCircle(cx, frameTop.toFloat(), handleRadiusPx, handlePaint)
-        canvas.drawCircle(cx, frameBottom.toFloat(), handleRadiusPx, handlePaint)
+            canvas.drawCircle(lineDotRadius, height / 2f, lineDotRadius, resizeWidgetLineDotPaint)
+            canvas.drawCircle(width / 2f, lineDotRadius, lineDotRadius, resizeWidgetLineDotPaint)
+            canvas.drawCircle(width - lineDotRadius, height / 2f, lineDotRadius, resizeWidgetLineDotPaint)
+            canvas.drawCircle(width / 2f, height - lineDotRadius, lineDotRadius, resizeWidgetLineDotPaint)
+        }
     }
 }
