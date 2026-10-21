@@ -186,14 +186,14 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun endResizeMode() {
-        resizingWidgetSlot = null
-        resizingWidgetView = null
-        isResizing = false
-        resizeOverlay.visibility = View.GONE
-        resizeFrame.visibility = View.GONE
-        homeViewPager.requestDisallowInterceptTouchEvent(false)
-    }
-
+    resizingWidgetSlot = null
+    resizingWidgetView = null
+    isResizing = false
+    resizeOverlay.visibility = View.GONE
+    resizeFrame.visibility = View.GONE
+    homeViewPager.requestDisallowInterceptTouchEvent(false)
+    renderWidgets()
+}
     override fun onStart() {
         super.onStart()
         appWidgetHost.startListening()
@@ -528,74 +528,75 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun startResize(
-        slot: WidgetSlot,
-        info: AppWidgetProviderInfo,
-        cellW: Int,
-        cellH: Int,
-        recycler: RecyclerView,
-        hostView: LauncherAppWidgetHostView,
-        pageIndex: Int
-    ) {
-        resizingWidgetSlot = slot
-        resizingWidgetView = hostView
-        isResizing = true
+    slot: WidgetSlot,
+    info: AppWidgetProviderInfo,
+    cellW: Int,
+    cellH: Int,
+    recycler: RecyclerView,
+    hostView: LauncherAppWidgetHostView,
+    pageIndex: Int
+) {
+    resizingWidgetSlot = slot
+    resizingWidgetView = hostView
+    isResizing = true
 
-        val containerLoc = IntArray(2)
-        val recyclerLoc = IntArray(2)
-        recycler.getLocationOnScreen(recyclerLoc)
-        val overlayLoc = IntArray(2)
-        resizeOverlay.getLocationOnScreen(overlayLoc)
-        val paddingTop = recycler.paddingTop
+    val containerLoc = IntArray(2)
+    val recyclerLoc = IntArray(2)
+    recycler.getLocationOnScreen(recyclerLoc)
+    val overlayLoc = IntArray(2)
+    resizeOverlay.getLocationOnScreen(overlayLoc)
+    val paddingTop = recycler.paddingTop
 
-        val cellW2 = cellW
-        val cellH2 = cellH
+    val widgetContainer = homePagerAdapter.getWidgetContainer(pageIndex)
+    widgetContainer?.getLocationOnScreen(containerLoc)
+    val containerScreenX = if (widgetContainer != null) containerLoc[0] else recyclerLoc[0]
+    val containerScreenY = if (widgetContainer != null) containerLoc[1] else recyclerLoc[1]
 
-        val widgetContainer = homePagerAdapter.getWidgetContainer(pageIndex)
-        widgetContainer?.getLocationOnScreen(containerLoc)
-        val containerScreenX = if (widgetContainer != null) containerLoc[0] else recyclerLoc[0]
-        val containerScreenY = if (widgetContainer != null) containerLoc[1] else recyclerLoc[1]
+    val offsetX = containerScreenX - overlayLoc[0]
+    val offsetY = containerScreenY - overlayLoc[1]
 
-        val offsetX = containerScreenX - overlayLoc[0]
-        val offsetY = containerScreenY - overlayLoc[1]
+    val frameLeftAbs = offsetX + slot.col * cellW
+    val frameTopAbs = offsetY + paddingTop + slot.row * cellH
+    val frameRightAbs = frameLeftAbs + slot.widthCells * cellW
+    val frameBottomAbs = frameTopAbs + slot.heightCells * cellH
 
-        val frameLeftAbs = offsetX + slot.col * cellW2
-        val frameTopAbs = offsetY + paddingTop + slot.row * cellH2
-        val frameRightAbs = frameLeftAbs + slot.widthCells * cellW2
-        val frameBottomAbs = frameTopAbs + slot.heightCells * cellH2
+    val sideMargins = Rect(offsetX, offsetY + paddingTop, 0, 0)
 
-        val sideMargins = Rect(offsetX, offsetY + paddingTop, 0, 0)
+    lifecycleScope.launch {
+        val allWidgets = Prefs.widgetSlotsFlow(this@HomeActivity).first()
+        val allSlots = allWidgets.filter { it.page == pageIndex }.toMutableList() as ArrayList<WidgetSlot>
 
-        lifecycleScope.launch {
-            val allWidgets = Prefs.widgetSlotsFlow(this@HomeActivity).first()
-            val allSlots = allWidgets.filter { it.page == pageIndex }.toMutableList() as ArrayList<WidgetSlot>
+        resizeFrame.updateFrameCoords(
+            coords = Rect(frameLeftAbs, frameTopAbs, frameRightAbs, frameBottomAbs),
+            cellWidth = cellW,
+            cellHeight = cellH,
+            sideMargins = sideMargins,
+            slot = slot,
+            allSlots = allSlots
+        )
 
-            resizeFrame.updateFrameCoords(
-                coords = Rect(frameLeftAbs, frameTopAbs, frameRightAbs, frameBottomAbs),
-                cellWidth = cellW2,
-                cellHeight = cellH2,
-                sideMargins = sideMargins,
-                slot = slot,
-                allSlots = allSlots
+        resizeFrame.onResizeListener = { cellsRect ->
+            val newSlot = slot.copy(
+                row = cellsRect.top,
+                col = cellsRect.left,
+                widthCells = cellsRect.right - cellsRect.left + 1,
+                heightCells = cellsRect.bottom - cellsRect.top + 1
             )
-
-            resizeFrame.onResizeListener = { cellsRect ->
-                val newSlot = slot.copy(
-                    row = cellsRect.top,
-                    col = cellsRect.left,
-                    widthCells = cellsRect.right - cellsRect.left + 1,
-                    heightCells = cellsRect.bottom - cellsRect.top + 1
-                )
-                resizingWidgetSlot = newSlot
-                updateWidgetPositionAndSize(hostView, newSlot, cellW2, cellH2, paddingTop)
-            }
-
-            resizeOverlay.visibility = View.VISIBLE
-            resizeOverlay.bringToFront()
-            resizeOverlay.elevation = 20f * resources.displayMetrics.density
-            resizeFrame.visibility = View.VISIBLE
-            homeViewPager.requestDisallowInterceptTouchEvent(true)
+            resizingWidgetSlot = newSlot
+            updateWidgetPositionAndSize(hostView, newSlot, cellW, cellH, paddingTop)
         }
+
+        resizeOverlay.setOnClickListener {
+            endResizeMode()
+        }
+
+        resizeOverlay.visibility = View.VISIBLE
+        resizeOverlay.bringToFront()
+        resizeOverlay.elevation = 20f * resources.displayMetrics.density
+        resizeFrame.visibility = View.VISIBLE
+        homeViewPager.requestDisallowInterceptTouchEvent(true)
     }
+}
 
     private fun updateWidgetPositionAndSize(
         hostView: LauncherAppWidgetHostView,
