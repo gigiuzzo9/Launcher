@@ -542,76 +542,77 @@ class HomeActivity : AppCompatActivity() {
     }
 
     private fun showWidgetMenu(
-        slot: WidgetSlot,
-        info: AppWidgetProviderInfo,
-        cellW: Int,
-        cellH: Int,
-        recycler: RecyclerView
-    ) {
-        val ctx = this
-        val density = resources.displayMetrics.density
-        fun dp(v: Int) = (v * density).toInt()
+    slot: WidgetSlot,
+    info: AppWidgetProviderInfo,
+    cellW: Int,
+    cellH: Int,
+    recycler: RecyclerView
+) {
+    val ctx = this
+    val density = resources.displayMetrics.density
+    fun dp(v: Int) = (v * density).toInt()
 
-        val container = android.widget.LinearLayout(ctx).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(dp(8), dp(8), dp(8), dp(8))
-            val drawable = android.graphics.drawable.GradientDrawable().apply {
-                cornerRadius = dp(6).toFloat()
-                setColor(Color.WHITE)
-            }
-            background = drawable
-            elevation = 8f * density
+    val container = android.widget.LinearLayout(ctx).apply {
+        orientation = android.widget.LinearLayout.VERTICAL
+        setPadding(dp(8), dp(8), dp(8), dp(8))
+        val drawable = android.graphics.drawable.GradientDrawable().apply {
+            cornerRadius = dp(6).toFloat()
+            setColor(Color.WHITE)
         }
+        background = drawable
+        elevation = 8f * density
+    }
 
-        fun addItem(text: String, onClick: () -> Unit) {
-            val tv = TextView(ctx).apply {
-                this.text = text
-                setTextColor(Color.BLACK)
-                textSize = 15f
-                setPadding(dp(20), dp(14), dp(20), dp(14))
-                val outValue = android.util.TypedValue()
-                context.theme.resolveAttribute(android.R.attr.selectableItemBackground, outValue, true)
-                setBackgroundResource(outValue.resourceId)
-                setOnClickListener {
-                    onClick()
-                    widgetPopupWindow?.dismiss()
-                }
-            }
-            container.addView(tv)
-        }
-
-        addItem("Ridimensiona") {
-            startResize(slot, info, cellW, cellH, recycler)
-        }
-        addItem("Rimuovi widget") {
-            lifecycleScope.launch {
-                try {
-                    val current = Prefs.widgetSlotsFlow(this@HomeActivity).first()
-                    Prefs.setWidgetSlots(
-                        this@HomeActivity,
-                        current.filter { it.appWidgetId != slot.appWidgetId }
-                    )
-                    appWidgetHost.deleteAppWidgetId(slot.appWidgetId)
-                    renderWidgets()
-                } catch (e: Exception) {
-                    android.util.Log.e("WIDGET_DEBUG", "Errore rimozione widget", e)
-                }
+    fun addItem(text: String, onClick: () -> Unit) {
+        val tv = TextView(ctx).apply {
+            this.text = text
+            setTextColor(Color.BLACK)
+            textSize = 15f
+            setPadding(dp(20), dp(14), dp(20), dp(14))
+            val outValue = android.util.TypedValue()
+            context.theme.resolveAttribute(android.R.attr.selectableItemBackground, outValue, true)
+            setBackgroundResource(outValue.resourceId)
+            setOnClickListener {
+                onClick()
+                widgetPopupWindow?.dismiss()
             }
         }
+        container.addView(tv)
+    }
 
-        widgetPopupWindow?.dismiss()
-        widgetPopupWindow = android.widget.PopupWindow(
-            container,
-            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            true
-        ).apply {
-            isOutsideTouchable = true
-            isFocusable = true
-            setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
-            showAtLocation(recycler, Gravity.CENTER, 0, 0)
+    addItem("Ridimensiona") {
+        dragController.cancelPendingDrag()
+        startResize(slot, info, cellW, cellH, recycler)
+    }
+    addItem("Rimuovi widget") {
+        lifecycleScope.launch {
+            try {
+                val current = Prefs.widgetSlotsFlow(this@HomeActivity).first()
+                Prefs.setWidgetSlots(
+                    this@HomeActivity,
+                    current.filter { it.appWidgetId != slot.appWidgetId }
+                )
+                appWidgetHost.deleteAppWidgetId(slot.appWidgetId)
+                renderWidgets()
+            } catch (e: Exception) {
+                android.util.Log.e("WIDGET_DEBUG", "Errore rimozione widget", e)
+            }
         }
     }
+
+    widgetPopupWindow?.dismiss()
+    widgetPopupWindow = android.widget.PopupWindow(
+        container,
+        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+        true
+    ).apply {
+        isOutsideTouchable = true
+        isFocusable = true
+        setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+        showAtLocation(recycler, Gravity.CENTER, 0, 0)
+    }
+}
 
     private fun startResize(
     slot: WidgetSlot,
