@@ -1,5 +1,6 @@
 package com.simplylauncher
 
+import android.appwidget.AppWidgetProviderInfo
 import android.content.ClipData
 import android.content.ClipDescription
 import android.view.DragEvent
@@ -7,16 +8,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.Toast
 
-/**
- * Coordina il flusso long-press → popup → drag → drop.
- *
- * - Long-press: mostra SUBITO il popup contestuale
- * - ACTION_MOVE oltre soglia: chiude il popup e avvia il drag
- * - ACTION_UP senza superare la soglia: il popup resta aperto
- *
- * Va chiamato da Activity.dispatchTouchEvent tramite onInterceptTouch,
- * perché i RecyclerView consumano i touch prima dei parent.
- */
 class DragController(
     private val activity: HomeActivity,
     private val homeRecyclerView: View,
@@ -27,16 +18,18 @@ class DragController(
 
     companion object {
         private const val DRAG_THRESHOLD_DP = 24f
-        private const val DRAWER_FADE_MS = 200L
 
         const val SOURCE_DRAWER = "DRAWER"
         const val SOURCE_HOME = "HOME"
         const val SOURCE_DOCK = "DOCK"
+        const val SOURCE_WIDGET = "WIDGET"
     }
 
     private val thresholdPx = DRAG_THRESHOLD_DP * activity.resources.displayMetrics.density
 
     private var pendingApp: AppInfo? = null
+    private var pendingWidget: WidgetSlot? = null
+    private var pendingWidgetInfo: AppWidgetProviderInfo? = null
     private var pendingAnchor: View? = null
     private var pendingSource: String? = null
     private var pendingFromDrawer = false
@@ -45,29 +38,33 @@ class DragController(
 
     private var isDragging = false
 
-    /**
-     * Chiamato dagli adapter al long-press.
-     * Mostra subito il popup contestuale e registra il pending per il drag.
-     */
     fun onLongPress(app: AppInfo, anchor: View, source: String, fromDrawer: Boolean) {
         if (isDragging) return
         pendingApp = app
+        pendingWidget = null
+        pendingWidgetInfo = null
         pendingAnchor = anchor
         pendingSource = source
         pendingFromDrawer = fromDrawer
         pendingStartRawX = -1f
         pendingStartRawY = -1f
 
-        // mostra SUBITO il popup contestuale
         activity.showContextMenuForDrag(app, anchor, fromDrawer)
     }
 
-    /**
-     * Da chiamare da Activity.dispatchTouchEvent PRIMA di super.dispatchTouchEvent.
-     * Ritorna true se l'evento è stato consumato (per evitare scroll del RecyclerView).
-     */
+    fun onWidgetLongPress(slot: WidgetSlot, info: AppWidgetProviderInfo, anchor: View) {
+        if (isDragging) return
+        pendingApp = null
+        pendingWidget = slot
+        pendingWidgetInfo = info
+        pendingAnchor = anchor
+        pendingSource = SOURCE_WIDGET
+        pendingFromDrawer = false
+        pendingStartRawX = -1f
+        pendingStartRawY = -1f
+    }
+
     fun onInterceptTouch(event: MotionEvent): Boolean {
-        val app = pendingApp ?: return false
         val anchor = pendingAnchor ?: return false
         val source = pendingSource ?: return false
 
@@ -90,15 +87,20 @@ class DragController(
                 val dy = event.rawY - pendingStartRawY
                 val dist = Math.hypot(dx.toDouble(), dy.toDouble()).toFloat()
                 if (dist > thresholdPx) {
-                    // chiudi il popup e avvia il drag
                     activity.dismissDragPopup()
-                    startDrag(app, anchor, source)
+                    val widget = pendingWidget
+                    val widgetInfo = pendingWidgetInfo
+                    val app = pendingApp
+                    if (widget != null && widgetInfo != null) {
+                        startWidgetDrag(widget, widgetInfo, anchor)
+                    } else if (app != null) {
+                        startDrag(app, anchor, source)
+                    }
                     return true
                 }
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                // rilascio senza muoversi: lascia il popup aperto (già mostrato)
                 clearPending()
                 return false
             }
@@ -120,10 +122,24 @@ class DragController(
         isDragging = true
 
         if (source == SOURCE_DRAWER) {
-            // chiudi il cassetto e mostra la home
             activity.onDragFromDrawerStarted()
         }
 
+        clearPending()
+    }
+
+    private fun startWidgetDrag(slot: WidgetSlot, info: AppWidgetProviderInfo, anchor: View) {
+        val clip = ClipData.newPlainText(SOURCE_WIDGET, slot.appWidgetId.toString())
+        val shadow = View.DragShadowBuilder(anchor)
+        val started = anchor.startDragAndDrop(clip, shadow, null, 0)
+
+        if (!started) {
+            Toast.makeText(activity, "Drag non supportato", Toast.LENGTH_SHORT).show()
+            clearPending()
+            return
+        }
+
+        isDragging = true
         clearPending()
     }
 
@@ -175,8 +191,36 @@ class DragController(
         return false
     }
 
+    fun handleWidgetDragEvent(event: DragEvent, pageIndex: Int, cellW: Int, cellH: Int, paddingTop: Int): Boolean {
+        when (event.action) {
+            DragEvent.ACTION_DRAG_STARTED ->
+                return event.clipDescription.hasMimeType(ClipDescription.MIMETYPE_TEXT_PLAIN)
+
+            DragEvent.ACTION_DROP -> {
+                val source = event.clipData.description.label?.toString() ?: ""
+                if (source == SOURCE_WIDGET) {
+                    val widgetId = event.clipData.getItemAt(0).text.toString().toIntOrNull()
+                    if (widgetId != null) {
+                        val col = (event.x / cellW).toInt().coerceIn(0, activity.getCurrentCols() - 1)
+                        val row = ((event.y - paddingTop) / cellH).toInt().coerceIn(0, activity.getCurrentRows() - 1)
+                        activity.moveWidget(widgetId, row, col, pageIndex)
+                    }
+                }
+                return true
+            }
+
+            DragEvent.ACTION_DRAG_ENDED -> {
+                onDragEnded()
+                return true
+            }
+        }
+        return false
+    }
+
     private fun clearPending() {
         pendingApp = null
+        pendingWidget = null
+        pendingWidgetInfo = null
         pendingAnchor = null
         pendingSource = null
         pendingFromDrawer = false
