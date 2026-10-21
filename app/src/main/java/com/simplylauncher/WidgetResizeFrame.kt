@@ -26,7 +26,7 @@ class WidgetResizeFrame @JvmOverloads constructor(
     }
 
     private val handleRadiusPx = 8f * resources.displayMetrics.density
-    private val handleTouchRadiusPx = 40f * resources.displayMetrics.density
+    private val handleTouchRadiusPx = 80f * resources.displayMetrics.density
 
     private var frameLeft = 0
     private var frameTop = 0
